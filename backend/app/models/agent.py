@@ -20,6 +20,11 @@ class Agent(Base):
     tools = Column(JSON)  # List of tool names/configurations
     llm_config = Column(JSON)  # LLM configuration
     
+    # Manager agent specific fields
+    manager_type = Column(String(50))  # hierarchical, collaborative, sequential
+    can_generate_tasks = Column(Boolean, default=False)
+    manager_config = Column(JSON)  # Manager-specific configuration
+    
     # Foreign Keys
     crew_id = Column(Integer, ForeignKey("crews.id"))
     

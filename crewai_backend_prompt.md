@@ -5,11 +5,11 @@ You are a senior Python developer tasked with building a comprehensive backend s
 ## Core Requirements
 
 Build a FastAPI-based backend that enables:
-- **Static Crews**: User-managed agents and tools
-- **Dynamic Crews**: AI-generated crews using specialized tools
-- **Real-time Execution**: WebSocket updates for crew execution states
+- **Static Crews**: User-managed agents and tools with optional manager agent configuration
+- **Dynamic Crews**: AI-generated crews using specialized tools with automatic manager agent assignment
+- **Real-time Execution**: WebSocket updates for crew execution states including manager agent coordination
 - **Memory System**: PostgreSQL-based short-term, long-term, and entity memory for CrewAI using pgvector for semantic search
-- **Queue System**: Task parallelization and dependency management
+- **Queue System**: Task parallelization and dependency management with manager agent oversight
 - **Tool Registry**: Centralized tool management (CrewAI + custom tools)
 - **Multi-LLM Support**: OpenAI, Anthropic, and Ollama integration
 - **Caching Layer**: Redis for performance optimization
@@ -266,15 +266,15 @@ prometheus-client
 **Features**:
 - Celery-based task queue system
 - Task dependency resolution (DAG-based)
-- Manager agent support for crew coordination
-- Parallel task execution capability
-- Task retry and failure handling
+- Manager agent support for crew coordination and task delegation
+- Parallel task execution capability with manager oversight
+- Task retry and failure handling coordinated by manager agents
 
 **Key Deliverables**:
 - Functional task queue with Redis backend
-- Manager agent automatically assigned to dynamic crews
-- Parallel execution of independent tasks
-- Robust error handling and recovery
+- Manager agent automatically assigned to dynamic crews with full coordination capabilities
+- Parallel execution of independent tasks under manager supervision
+- Robust error handling and recovery managed by manager agents
 
 ### Phase 5: Caching & Performance
 **Objective**: Implement Redis caching and performance optimizations
@@ -315,14 +315,15 @@ prometheus-client
 - Dynamic crew generator using LLM
 - Automatic crew composition based on task requirements
 - Intelligent agent and tool selection
+- Automatic manager agent assignment with coordination capabilities
 - Dynamic crew optimization and validation
 - Integration with existing crew execution pipeline
 
 **Key Deliverables**:
-- Functional dynamic crew generation
-- Automatic crew optimization
-- Seamless integration with static crews
-- Comprehensive validation of generated crews
+- Functional dynamic crew generation with automatic manager agent coordination
+- Automatic crew optimization with manager oversight
+- Seamless integration between static and dynamic crews
+- Comprehensive validation of generated crews including manager agent capabilities
 
 ### Phase 8: Monitoring & Finalization
 **Objective**: Complete monitoring system and final optimizations
@@ -341,6 +342,25 @@ prometheus-client
 - Production-ready Docker configuration
 - Comprehensive test coverage (>90%)
 - Performance benchmarks and optimization
+
+### Phase 9: Advanced Parallel Task Execution
+**Objective**: Implement custom parallelization system for manager agents
+
+**Features**:
+- Custom Redis-based task distribution system
+- True parallel task execution bypassing CrewAI's sequential limitations
+- Advanced dependency resolution with Redis coordination
+- Agent task pulling mechanism with dependency checking
+- Manager agent coordination of parallel workflows
+- Performance comparison between built-in and custom parallelization
+
+**Key Deliverables**:
+- Custom parallel execution engine for manager agents
+- Redis-based task queue with dependency resolution
+- Agent polling system for task distribution
+- Performance metrics comparing parallel vs sequential execution
+- Seamless integration with existing CrewAI system
+- Advanced task coordination and result aggregation
 
 ## Success Criteria for Each Phase
 
@@ -370,6 +390,9 @@ prometheus-client
 - **Use design patterns** appropriate for each component
 - **Maintain clean separation** of concerns between layers
 - **Write comprehensive tests** before implementing features
+- **Manager agent implementation** must follow CrewAI specifications for task coordination and oversight
+- **Dynamic crews** must automatically receive properly configured manager agents
+- **Task delegation** by manager agents must integrate seamlessly with the queue system
 
 ## Getting Started
 

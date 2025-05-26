@@ -14,6 +14,11 @@ class AgentBase(BaseModel):
     max_execution_time: Optional[int] = Field(None, gt=0)
     tools: Optional[List[str]] = None
     llm_config: Optional[Dict[str, Any]] = None
+    
+    # Manager agent fields
+    manager_type: Optional[str] = Field(None, pattern="^(hierarchical|collaborative|sequential)$")
+    can_generate_tasks: bool = False
+    manager_config: Optional[Dict[str, Any]] = None
 
 
 class AgentCreate(AgentBase):
@@ -33,6 +38,11 @@ class AgentUpdate(BaseModel):
     tools: Optional[List[str]] = None
     llm_config: Optional[Dict[str, Any]] = None
     crew_id: Optional[int] = None
+    
+    # Manager agent fields
+    manager_type: Optional[str] = Field(None, pattern="^(hierarchical|collaborative|sequential)$")
+    can_generate_tasks: Optional[bool] = None
+    manager_config: Optional[Dict[str, Any]] = None
 
 
 class AgentResponse(AgentBase):
