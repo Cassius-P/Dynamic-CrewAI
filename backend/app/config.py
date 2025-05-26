@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql://user:password@localhost:5432/crewai_backend"
     
+    # Redis
+    redis_url: str = "redis://localhost:6379/0"
+    
     # Security
     secret_key: str = "your-secret-key-here"
     

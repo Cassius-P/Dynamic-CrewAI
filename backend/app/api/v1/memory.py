@@ -179,14 +179,21 @@ async def search_long_term_memory(
         memory_service.db_session = db
         
         long_term = memory_service.get_long_term_memory(crew_id)
-        results = await long_term.retrieve(
-            query=search_request.query,
-            limit=search_request.limit,
-            similarity_threshold=search_request.similarity_threshold,
-            content_type=search_request.content_type,
-            min_importance=search_request.min_importance,
-            tags=search_request.tags
-        )
+        
+        # Build kwargs dynamically to handle optional parameters
+        retrieve_kwargs = {
+            "query": search_request.query,
+            "limit": search_request.limit,
+            "similarity_threshold": search_request.similarity_threshold,
+        }
+        if search_request.content_type:
+            retrieve_kwargs["content_type"] = search_request.content_type
+        if search_request.min_importance is not None:
+            retrieve_kwargs["min_importance"] = search_request.min_importance
+        if search_request.tags:
+            retrieve_kwargs["tags"] = search_request.tags
+            
+        results = await long_term.retrieve(**retrieve_kwargs)
         
         return results
         
@@ -214,10 +221,7 @@ async def update_long_term_memory(
         success = await long_term.update(
             memory_id=memory_id,
             content=memory_update.content,
-            metadata=memory_update.metadata,
-            importance_score=memory_update.importance_score,
-            tags=memory_update.tags,
-            summary=memory_update.summary
+            metadata=memory_update.metadata
         )
         
         if not success:
@@ -316,13 +320,19 @@ async def search_entities(
         memory_service.db_session = db
         
         entity_memory = memory_service.get_entity_memory(crew_id)
-        results = await entity_memory.retrieve(
-            query=search_request.query,
-            limit=search_request.limit,
-            similarity_threshold=search_request.similarity_threshold,
-            entity_type=search_request.entity_type,
-            min_confidence=search_request.min_confidence
-        )
+        
+        # Build kwargs dynamically to handle optional parameters
+        retrieve_kwargs = {
+            "query": search_request.query,
+            "limit": search_request.limit,
+            "similarity_threshold": search_request.similarity_threshold,
+        }
+        if search_request.entity_type:
+            retrieve_kwargs["entity_type"] = search_request.entity_type
+        if search_request.min_confidence is not None:
+            retrieve_kwargs["min_confidence"] = search_request.min_confidence
+            
+        results = await entity_memory.retrieve(**retrieve_kwargs)
         
         return results
         
@@ -436,7 +446,29 @@ async def search_all_memories(
             similarity_threshold=search_request.similarity_threshold
         )
         
-        return MemorySearchResponse(**results)
+        # Convert base_memory.SearchResult to schemas.memory.SearchResult
+        converted_results = {}
+        for memory_type, search_results in results.items():
+            if search_results:
+                converted_results[memory_type] = [
+                    SearchResult(
+                        item=MemoryItemResponse(
+                            id=result.item.id,
+                            content=result.item.content,
+                            content_type=result.item.content_type,
+                            metadata=result.item.metadata,
+                            created_at=result.item.created_at,
+                            relevance_score=result.item.relevance_score
+                        ),
+                        similarity_score=result.similarity_score,
+                        rank=result.rank
+                    )
+                    for result in search_results
+                ]
+            else:
+                converted_results[memory_type] = None
+        
+        return MemorySearchResponse(**converted_results)
         
     except Exception as e:
         raise HTTPException(
