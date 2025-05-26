@@ -2,7 +2,7 @@
 
 import json
 import uuid
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, cast
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_, text, func
@@ -111,31 +111,43 @@ class EntityMemoryImpl(BaseMemory):
             # Calculate similarities and filter by threshold
             results = []
             for i, entity in enumerate(entities):
-                if entity.embedding:
+                # Cast the embedding attribute to get the actual runtime value
+                entity_embedding = cast(List[float], entity.embedding)
+                if entity_embedding:
                     similarity = await self.embedding_service.get_similarity(
-                        query_embedding, entity.embedding
+                        query_embedding, entity_embedding
                     )
                     
                     if similarity >= similarity_threshold:
-                        # Update mention tracking
-                        entity.mention_count += 1
-                        entity.last_updated = datetime.utcnow()
+                        # Update mention tracking using setattr to avoid type checker issues
+                        setattr(entity, 'mention_count', getattr(entity, 'mention_count', 0) + 1)
+                        setattr(entity, 'last_updated', datetime.utcnow())
+                        
+                        # Cast all model attributes to their runtime types
+                        entity_description = cast(Optional[str], entity.description)
+                        entity_name = cast(str, entity.entity_name)
+                        entity_attributes = cast(Optional[str], entity.attributes)
+                        entity_first_mentioned = cast(datetime, entity.first_mentioned)
+                        entity_confidence_score = cast(float, entity.confidence_score)
+                        entity_type = cast(str, entity.entity_type)
+                        entity_mention_count = cast(int, entity.mention_count)
+                        entity_last_updated = cast(datetime, entity.last_updated)
                         
                         entity_item = EntityItem(
                             id=str(entity.id),
-                            content=entity.description or entity.entity_name,
+                            content=entity_description or entity_name,
                             content_type="entity",
-                            metadata=json.loads(entity.attributes) if entity.attributes else None,
-                            created_at=entity.first_mentioned,
-                            relevance_score=entity.confidence_score,
-                            entity_name=entity.entity_name,
-                            entity_type=entity.entity_type,
-                            description=entity.description,
-                            attributes=json.loads(entity.attributes) if entity.attributes else None,
-                            confidence_score=entity.confidence_score,
-                            mention_count=entity.mention_count,
-                            first_mentioned=entity.first_mentioned,
-                            last_updated=entity.last_updated
+                            metadata=json.loads(entity_attributes) if entity_attributes else None,
+                            created_at=entity_first_mentioned,
+                            relevance_score=entity_confidence_score,
+                            entity_name=entity_name,
+                            entity_type=entity_type,
+                            description=entity_description,
+                            attributes=json.loads(entity_attributes) if entity_attributes else None,
+                            confidence_score=entity_confidence_score,
+                            mention_count=entity_mention_count,
+                            first_mentioned=entity_first_mentioned,
+                            last_updated=entity_last_updated
                         )
                         
                         results.append(SearchResult(
@@ -172,21 +184,31 @@ class EntityMemoryImpl(BaseMemory):
             if not entity:
                 return None
             
+            # Cast all model attributes to their runtime types
+            entity_description = cast(Optional[str], entity.description)
+            entity_name = cast(str, entity.entity_name)
+            entity_attributes = cast(Optional[str], entity.attributes)
+            entity_first_mentioned = cast(datetime, entity.first_mentioned)
+            entity_confidence_score = cast(float, entity.confidence_score)
+            entity_type = cast(str, entity.entity_type)
+            entity_mention_count = cast(int, entity.mention_count)
+            entity_last_updated = cast(datetime, entity.last_updated)
+            
             return EntityItem(
                 id=str(entity.id),
-                content=entity.description or entity.entity_name,
+                content=entity_description or entity_name,
                 content_type="entity",
-                metadata=json.loads(entity.attributes) if entity.attributes else None,
-                created_at=entity.first_mentioned,
-                relevance_score=entity.confidence_score,
-                entity_name=entity.entity_name,
-                entity_type=entity.entity_type,
-                description=entity.description,
-                attributes=json.loads(entity.attributes) if entity.attributes else None,
-                confidence_score=entity.confidence_score,
-                mention_count=entity.mention_count,
-                first_mentioned=entity.first_mentioned,
-                last_updated=entity.last_updated
+                metadata=json.loads(entity_attributes) if entity_attributes else None,
+                created_at=entity_first_mentioned,
+                relevance_score=entity_confidence_score,
+                entity_name=entity_name,
+                entity_type=entity_type,
+                description=entity_description,
+                attributes=json.loads(entity_attributes) if entity_attributes else None,
+                confidence_score=entity_confidence_score,
+                mention_count=entity_mention_count,
+                first_mentioned=entity_first_mentioned,
+                last_updated=entity_last_updated
             )
             
         except Exception as e:
@@ -211,20 +233,23 @@ class EntityMemoryImpl(BaseMemory):
             if not entity:
                 return False
             
-            # Update fields
+            # Update fields using setattr to avoid type checker issues
             if description is not None:
-                entity.description = description
+                setattr(entity, 'description', description)
                 # Regenerate embedding if description changed
-                embedding_text = f"{entity.entity_name} {entity.entity_type} {description}"
-                entity.embedding = await self.embedding_service.get_embedding(embedding_text)
+                entity_name = cast(str, entity.entity_name)
+                entity_type = cast(str, entity.entity_type)
+                embedding_text = f"{entity_name} {entity_type} {description}"
+                embedding = await self.embedding_service.get_embedding(embedding_text)
+                setattr(entity, 'embedding', embedding)
             
             if attributes is not None:
-                entity.attributes = json.dumps(attributes)
+                setattr(entity, 'attributes', json.dumps(attributes))
             
             if confidence_score is not None:
-                entity.confidence_score = confidence_score
+                setattr(entity, 'confidence_score', confidence_score)
             
-            entity.last_updated = datetime.utcnow()
+            setattr(entity, 'last_updated', datetime.utcnow())
             
             self.db_session.commit()
             return True
@@ -291,19 +316,19 @@ class EntityMemoryImpl(BaseMemory):
             return [
                 EntityItem(
                     id=str(entity.id),
-                    content=entity.description or entity.entity_name,
+                    content=cast(Optional[str], entity.description) or cast(str, entity.entity_name),
                     content_type="entity",
-                    metadata=json.loads(entity.attributes) if entity.attributes else None,
-                    created_at=entity.first_mentioned,
-                    relevance_score=entity.confidence_score,
-                    entity_name=entity.entity_name,
-                    entity_type=entity.entity_type,
-                    description=entity.description,
-                    attributes=json.loads(entity.attributes) if entity.attributes else None,
-                    confidence_score=entity.confidence_score,
-                    mention_count=entity.mention_count,
-                    first_mentioned=entity.first_mentioned,
-                    last_updated=entity.last_updated
+                    metadata=json.loads(cast(str, entity.attributes)) if cast(Optional[str], entity.attributes) else None,
+                    created_at=cast(datetime, entity.first_mentioned),
+                    relevance_score=cast(float, entity.confidence_score),
+                    entity_name=cast(str, entity.entity_name),
+                    entity_type=cast(str, entity.entity_type),
+                    description=cast(Optional[str], entity.description),
+                    attributes=json.loads(cast(str, entity.attributes)) if cast(Optional[str], entity.attributes) else None,
+                    confidence_score=cast(float, entity.confidence_score),
+                    mention_count=cast(int, entity.mention_count),
+                    first_mentioned=cast(datetime, entity.first_mentioned),
+                    last_updated=cast(datetime, entity.last_updated)
                 )
                 for entity in entities
             ]
@@ -358,9 +383,10 @@ class EntityMemoryImpl(BaseMemory):
             ).first()
             
             if existing:
-                # Update existing relationship
-                existing.strength = max(existing.strength, strength)
-                existing.context = context
+                # Update existing relationship using setattr
+                existing_strength = cast(float, existing.strength)
+                setattr(existing, 'strength', max(existing_strength, strength))
+                setattr(existing, 'context', context)
                 self.db_session.commit()
                 return str(existing.id)
             
@@ -448,19 +474,19 @@ class EntityMemoryImpl(BaseMemory):
             return [
                 EntityItem(
                     id=str(entity.id),
-                    content=entity.description or entity.entity_name,
+                    content=cast(Optional[str], entity.description) or cast(str, entity.entity_name),
                     content_type="entity",
-                    metadata=json.loads(entity.attributes) if entity.attributes else None,
-                    created_at=entity.first_mentioned,
-                    relevance_score=entity.confidence_score,
-                    entity_name=entity.entity_name,
-                    entity_type=entity.entity_type,
-                    description=entity.description,
-                    attributes=json.loads(entity.attributes) if entity.attributes else None,
-                    confidence_score=entity.confidence_score,
-                    mention_count=entity.mention_count,
-                    first_mentioned=entity.first_mentioned,
-                    last_updated=entity.last_updated
+                    metadata=json.loads(cast(str, entity.attributes)) if cast(Optional[str], entity.attributes) else None,
+                    created_at=cast(datetime, entity.first_mentioned),
+                    relevance_score=cast(float, entity.confidence_score),
+                    entity_name=cast(str, entity.entity_name),
+                    entity_type=cast(str, entity.entity_type),
+                    description=cast(Optional[str], entity.description),
+                    attributes=json.loads(cast(str, entity.attributes)) if cast(Optional[str], entity.attributes) else None,
+                    confidence_score=cast(float, entity.confidence_score),
+                    mention_count=cast(int, entity.mention_count),
+                    first_mentioned=cast(datetime, entity.first_mentioned),
+                    last_updated=cast(datetime, entity.last_updated)
                 )
                 for entity in entities
             ]
@@ -532,22 +558,28 @@ class EntityMemoryImpl(BaseMemory):
         confidence_score: float
     ) -> str:
         """Update an existing entity."""
-        # Update fields
-        if description and not entity.description:
-            entity.description = description
+        # Update fields using setattr to avoid type checker issues
+        entity_description = cast(Optional[str], entity.description)
+        if description and not entity_description:
+            setattr(entity, 'description', description)
             # Regenerate embedding
-            embedding_text = f"{entity.entity_name} {entity.entity_type} {description}"
-            entity.embedding = await self.embedding_service.get_embedding(embedding_text)
+            entity_name = cast(str, entity.entity_name)
+            entity_type = cast(str, entity.entity_type)
+            embedding_text = f"{entity_name} {entity_type} {description}"
+            embedding = await self.embedding_service.get_embedding(embedding_text)
+            setattr(entity, 'embedding', embedding)
         
         if attributes:
-            existing_attrs = json.loads(entity.attributes) if entity.attributes else {}
+            entity_attributes = cast(Optional[str], entity.attributes)
+            existing_attrs = json.loads(entity_attributes) if entity_attributes else {}
             existing_attrs.update(attributes)
-            entity.attributes = json.dumps(existing_attrs)
+            setattr(entity, 'attributes', json.dumps(existing_attrs))
         
         # Update confidence (take maximum)
-        entity.confidence_score = max(entity.confidence_score, confidence_score)
-        entity.mention_count += 1
-        entity.last_updated = datetime.utcnow()
+        entity_confidence = cast(float, entity.confidence_score)
+        setattr(entity, 'confidence_score', max(entity_confidence, confidence_score))
+        setattr(entity, 'mention_count', getattr(entity, 'mention_count', 0) + 1)
+        setattr(entity, 'last_updated', datetime.utcnow())
         
         self.db_session.commit()
         return str(entity.id) 

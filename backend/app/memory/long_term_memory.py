@@ -2,7 +2,7 @@
 
 import json
 import uuid
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, cast
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_, text, func
@@ -109,23 +109,32 @@ class LongTermMemoryImpl(BaseMemory):
             # Calculate similarities and filter by threshold
             results = []
             for i, memory in enumerate(memories):
-                if memory.embedding:
+                # Cast the embedding attribute to get the actual runtime value
+                memory_embedding = cast(List[float], memory.embedding)
+                if memory_embedding:
                     similarity = await self.embedding_service.get_similarity(
-                        query_embedding, memory.embedding
+                        query_embedding, memory_embedding
                     )
                     
                     if similarity >= similarity_threshold:
-                        # Update access tracking
-                        memory.access_count += 1
-                        memory.last_accessed = datetime.utcnow()
+                        # Update access tracking using setattr to avoid type checker issues
+                        setattr(memory, 'access_count', getattr(memory, 'access_count', 0) + 1)
+                        setattr(memory, 'last_accessed', datetime.utcnow())
+                        
+                        # Cast all model attributes to their runtime types
+                        memory_content = cast(str, memory.content)
+                        memory_content_type = cast(str, memory.content_type)
+                        memory_metadata = cast(Optional[str], memory.metadata)
+                        memory_created_at = cast(datetime, memory.created_at)
+                        memory_importance_score = cast(Optional[float], memory.importance_score)
                         
                         memory_item = MemoryItem(
                             id=str(memory.id),
-                            content=memory.content,
-                            content_type=memory.content_type,
-                            metadata=json.loads(memory.metadata) if memory.metadata else None,
-                            created_at=memory.created_at,
-                            relevance_score=memory.importance_score
+                            content=memory_content,
+                            content_type=memory_content_type,
+                            metadata=json.loads(memory_metadata) if memory_metadata else None,
+                            created_at=memory_created_at,
+                            relevance_score=memory_importance_score
                         )
                         
                         results.append(SearchResult(
@@ -158,18 +167,25 @@ class LongTermMemoryImpl(BaseMemory):
             if not memory:
                 return None
             
-            # Update access tracking
-            memory.access_count += 1
-            memory.last_accessed = datetime.utcnow()
+            # Update access tracking using setattr to avoid type checker issues
+            setattr(memory, 'access_count', getattr(memory, 'access_count', 0) + 1)
+            setattr(memory, 'last_accessed', datetime.utcnow())
             self.db_session.commit()
+            
+            # Cast all model attributes to their runtime types
+            memory_content = cast(str, memory.content)
+            memory_content_type = cast(str, memory.content_type)
+            memory_metadata = cast(Optional[str], memory.metadata)
+            memory_created_at = cast(datetime, memory.created_at)
+            memory_importance_score = cast(Optional[float], memory.importance_score)
             
             return MemoryItem(
                 id=str(memory.id),
-                content=memory.content,
-                content_type=memory.content_type,
-                metadata=json.loads(memory.metadata) if memory.metadata else None,
-                created_at=memory.created_at,
-                relevance_score=memory.importance_score
+                content=memory_content,
+                content_type=memory_content_type,
+                metadata=json.loads(memory_metadata) if memory_metadata else None,
+                created_at=memory_created_at,
+                relevance_score=memory_importance_score
             )
             
         except Exception as e:
@@ -194,25 +210,26 @@ class LongTermMemoryImpl(BaseMemory):
             if not memory:
                 return False
             
-            # Update fields
+            # Update fields using setattr to avoid type checker issues
             if content is not None:
-                memory.content = content
+                setattr(memory, 'content', content)
                 # Regenerate embedding if content changed
-                memory.embedding = await self.embedding_service.get_embedding(content)
+                embedding = await self.embedding_service.get_embedding(content)
+                setattr(memory, 'embedding', embedding)
             
             if metadata is not None:
-                memory.metadata = json.dumps(metadata)
+                setattr(memory, 'metadata', json.dumps(metadata))
             
             if importance_score is not None:
-                memory.importance_score = importance_score
+                setattr(memory, 'importance_score', importance_score)
             
             if tags is not None:
-                memory.tags = ",".join(tags)
+                setattr(memory, 'tags', ",".join(tags))
             
             if summary is not None:
-                memory.summary = summary
+                setattr(memory, 'summary', summary)
             
-            memory.updated_at = datetime.utcnow()
+            setattr(memory, 'updated_at', datetime.utcnow())
             
             self.db_session.commit()
             return True
@@ -269,11 +286,11 @@ class LongTermMemoryImpl(BaseMemory):
             return [
                 MemoryItem(
                     id=str(memory.id),
-                    content=memory.content,
-                    content_type=memory.content_type,
-                    metadata=json.loads(memory.metadata) if memory.metadata else None,
-                    created_at=memory.created_at,
-                    relevance_score=memory.importance_score
+                    content=cast(str, memory.content),
+                    content_type=cast(str, memory.content_type),
+                    metadata=json.loads(cast(str, memory.metadata)) if cast(Optional[str], memory.metadata) else None,
+                    created_at=cast(datetime, memory.created_at),
+                    relevance_score=cast(Optional[float], memory.importance_score)
                 )
                 for memory in memories
             ]
@@ -388,11 +405,11 @@ class LongTermMemoryImpl(BaseMemory):
             return [
                 MemoryItem(
                     id=str(memory.id),
-                    content=memory.content,
-                    content_type=memory.content_type,
-                    metadata=json.loads(memory.metadata) if memory.metadata else None,
-                    created_at=memory.created_at,
-                    relevance_score=memory.importance_score
+                    content=cast(str, memory.content),
+                    content_type=cast(str, memory.content_type),
+                    metadata=json.loads(cast(str, memory.metadata)) if cast(Optional[str], memory.metadata) else None,
+                    created_at=cast(datetime, memory.created_at),
+                    relevance_score=cast(Optional[float], memory.importance_score)
                 )
                 for memory in memories
             ]
@@ -417,11 +434,11 @@ class LongTermMemoryImpl(BaseMemory):
             return [
                 MemoryItem(
                     id=str(memory.id),
-                    content=memory.content,
-                    content_type=memory.content_type,
-                    metadata=json.loads(memory.metadata) if memory.metadata else None,
-                    created_at=memory.created_at,
-                    relevance_score=memory.importance_score
+                    content=cast(str, memory.content),
+                    content_type=cast(str, memory.content_type),
+                    metadata=json.loads(cast(str, memory.metadata)) if cast(Optional[str], memory.metadata) else None,
+                    created_at=cast(datetime, memory.created_at),
+                    relevance_score=cast(Optional[float], memory.importance_score)
                 )
                 for memory in memories
             ]
