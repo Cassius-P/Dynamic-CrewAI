@@ -26,3 +26,10 @@ class Crew(Base):
     # Relationships
     agents = relationship("Agent", back_populates="crew", cascade="all, delete-orphan")
     executions = relationship("Execution", back_populates="crew")
+    
+    # Memory relationships
+    short_term_memories = relationship("ShortTermMemory", back_populates="crew", cascade="all, delete-orphan")
+    long_term_memories = relationship("LongTermMemory", back_populates="crew", cascade="all, delete-orphan")
+    entity_memories = relationship("EntityMemory", back_populates="crew", cascade="all, delete-orphan")
+    memory_configuration = relationship("MemoryConfiguration", back_populates="crew", uselist=False, cascade="all, delete-orphan")
+    memory_cleanup_logs = relationship("MemoryCleanupLog", back_populates="crew", cascade="all, delete-orphan")

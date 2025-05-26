@@ -7,6 +7,9 @@ from app.main import app
 from app.database import Base
 from app.api.deps import get_db
 
+# Enable mock memory for tests
+os.environ["USE_MOCK_MEMORY"] = "true"
+
 # Test database URL - use absolute path for SQLite
 TEST_DB_PATH = os.path.join(os.path.dirname(__file__), "test.db")
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{TEST_DB_PATH}"
@@ -42,6 +45,18 @@ def client():
     
     # Clean up dependency override
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def db_session():
+    """Create database session for tests."""
+    Base.metadata.create_all(bind=engine)
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+        Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture(autouse=True)

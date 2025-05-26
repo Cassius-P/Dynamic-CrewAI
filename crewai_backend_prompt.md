@@ -8,7 +8,7 @@ Build a FastAPI-based backend that enables:
 - **Static Crews**: User-managed agents and tools
 - **Dynamic Crews**: AI-generated crews using specialized tools
 - **Real-time Execution**: WebSocket updates for crew execution states
-- **Memory System**: PostgreSQL-based short-term, long-term, and entity memory for CrewAI
+- **Memory System**: PostgreSQL-based short-term, long-term, and entity memory for CrewAI using pgvector for semantic search
 - **Queue System**: Task parallelization and dependency management
 - **Tool Registry**: Centralized tool management (CrewAI + custom tools)
 - **Multi-LLM Support**: OpenAI, Anthropic, and Ollama integration
@@ -29,6 +29,21 @@ Build a FastAPI-based backend that enables:
 - **PAUSE** after each phase completion and wait for explicit approval to continue
 - If tests fail, debug and fix until all tests pass before pausing
 - If uncertain about any implementation detail, **PAUSE** and ask for clarification
+- **Use MCP create_pieces_memory tool** when finishing big steps within a phase to store long-term memory of completed work
+
+### MCP Server Integration
+You have access to an MCP server with a `create_pieces_memory` tool for long-term storage. Use this tool to:
+- Store completed implementation details after finishing major components
+- Record key decisions and architectural choices made during development
+- Save important code patterns and solutions for future reference
+- Document phase completion status and key deliverables
+
+**When to use create_pieces_memory:**
+- After implementing core database models in a phase
+- After completing major wrapper classes or services
+- After finishing API endpoint implementations
+- After achieving significant testing milestones
+- Before pausing for phase approval
 
 ### Reference Documentation
 - For CrewAI-specific questions, consult: https://docs.crewai.com/introduction
@@ -172,6 +187,7 @@ uvicorn
 sqlalchemy
 alembic
 psycopg2-binary
+pgvector
 redis
 celery
 pydantic
@@ -334,6 +350,7 @@ prometheus-client
 4. **Integration tests validate** end-to-end functionality
 5. **Performance tests meet** acceptable thresholds
 6. **Code coverage exceeds** 85% for each phase
+7. **Key implementation decisions stored** using create_pieces_memory tool
 
 ## Response Guidelines
 
@@ -343,6 +360,7 @@ prometheus-client
 - **Use proper error handling** and validation
 - **Follow Python best practices** and PEP 8 conventions
 - **Implement proper logging** for debugging and monitoring
+- **Use create_pieces_memory tool** after completing major implementation steps to store progress and decisions
 
 ## Important Notes
 

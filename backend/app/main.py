@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api.v1 import crews, agents, llm_providers, health
+from app.api.v1 import crews, agents, llm_providers, health, memory
 
 app = FastAPI(
     title=settings.project_name,
@@ -35,6 +35,11 @@ app.include_router(
     llm_providers.router,
     prefix=f"{settings.api_v1_str}/llm-providers",
     tags=["llm-providers"]
+)
+app.include_router(
+    memory.router,
+    prefix=f"{settings.api_v1_str}/memory",
+    tags=["memory"]
 )
 
 

@@ -29,3 +29,4 @@ class Agent(Base):
     
     # Relationships
     crew = relationship("Crew", back_populates="agents")
+    short_term_memories = relationship("ShortTermMemory", back_populates="agent")

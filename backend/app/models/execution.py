@@ -37,3 +37,5 @@ class Execution(Base):
     
     # Relationships
     crew = relationship("Crew", back_populates="executions")
+    short_term_memories = relationship("ShortTermMemory", back_populates="execution")
+    long_term_memories = relationship("LongTermMemory", back_populates="source_execution")
