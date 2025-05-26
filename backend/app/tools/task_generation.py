@@ -1,7 +1,7 @@
 """Task generation tools for converting text input into CrewAI Task objects."""
 
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from crewai import Task
 
 from app.models.agent import Agent as AgentModel
@@ -39,7 +39,7 @@ class TaskGenerator:
         if not text_input or not text_input.strip():
             raise ValueError("Text input cannot be empty")
         
-        if manager_agent.can_generate_tasks is not True:
+        if (getattr(manager_agent, 'can_generate_tasks', None) is not True):
             raise ValueError("Agent cannot generate tasks")
         
         # Parse tasks from text
@@ -163,7 +163,7 @@ class TaskGenerator:
         # Validate manager agent
         if not manager_agent:
             errors.append("Manager agent is required")
-        elif manager_agent.can_generate_tasks is not True:
+        elif getattr(manager_agent, 'can_generate_tasks', None) is not True:
             errors.append("Agent cannot generate tasks")
         
         return {
@@ -180,7 +180,8 @@ class TaskGenerator:
         Returns:
             Task generation configuration
         """
-        config = manager_agent.manager_config if manager_agent.manager_config is not None else {}
+        manager_config = getattr(manager_agent, 'manager_config', None)
+        config = manager_config if manager_config is not None else {}
         
         return {
             "max_tasks_per_request": config.get("max_tasks_per_request", 10),
@@ -203,15 +204,18 @@ class TaskGenerator:
         Returns:
             CrewAI Task object
         """
-        task_kwargs = {
-            "description": description,
-            "expected_output": expected_output
-        }
-        
+        # Only pass required parameters to avoid constructor issues
         if agent is not None:
-            task_kwargs["agent"] = agent
-        
-        return Task(**task_kwargs)
+            return Task(
+                description=description,
+                expected_output=expected_output,
+                agent=agent
+            )
+        else:
+            return Task(
+                description=description,
+                expected_output=expected_output
+            )
     
     def enhance_task_descriptions(self, task_descriptions: List[str], 
                                 context: str = "") -> List[str]:

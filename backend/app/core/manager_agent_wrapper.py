@@ -1,6 +1,6 @@
 """Manager Agent wrapper for specialized CrewAI manager agent functionality."""
 
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any
 from crewai import Agent as CrewAIAgent, Task
 
 from app.models.agent import Agent as AgentModel
@@ -77,7 +77,7 @@ class ManagerAgentWrapper:
         Raises:
             ValueError: If agent cannot generate tasks
         """
-        if manager_agent.can_generate_tasks != True:
+        if manager_agent.can_generate_tasks is not True:
             raise ValueError("Agent cannot generate tasks")
         
         return self.task_generator.generate_tasks(text_input, manager_agent)
@@ -91,8 +91,9 @@ class ManagerAgentWrapper:
         Returns:
             Manager configuration dictionary
         """
-        if agent_model.manager_config is not None:
-            return agent_model.manager_config
+        manager_config = getattr(agent_model, 'manager_config', None)
+        if manager_config is not None:
+            return manager_config
         
         # Return default configuration
         return {
@@ -120,17 +121,22 @@ class ManagerAgentWrapper:
             errors.append(f"Invalid manager_type: {agent_model.manager_type}")
         
         # Check delegation capability
-        if agent_model.manager_type is not None and agent_model.allow_delegation != True:
+        manager_type = getattr(agent_model, 'manager_type', None)
+        allow_delegation = getattr(agent_model, 'allow_delegation', None)
+        if manager_type is not None and allow_delegation is not True:
             errors.append("Manager agents should have allow_delegation=True")
         
         # Check required fields
-        if agent_model.role is None or agent_model.role == "":
+        role = getattr(agent_model, 'role', None)
+        if role is None or role == "":
             errors.append("Manager agent must have a role")
         
-        if agent_model.goal is None or agent_model.goal == "":
+        goal = getattr(agent_model, 'goal', None)
+        if goal is None or goal == "":
             errors.append("Manager agent must have a goal")
         
-        if agent_model.backstory is None or agent_model.backstory == "":
+        backstory = getattr(agent_model, 'backstory', None)
+        if backstory is None or backstory == "":
             errors.append("Manager agent must have a backstory")
         
         return {
@@ -219,18 +225,20 @@ class ManagerAgentWrapper:
         Returns:
             List of tool names for manager functionality
         """
-        base_tools = agent_model.tools or []
+        base_tools = getattr(agent_model, 'tools', None) or []
         manager_tools = []
         
         # Add task generation tools if capable
-        if agent_model.can_generate_tasks:
+        can_generate_tasks = getattr(agent_model, 'can_generate_tasks', None)
+        if can_generate_tasks is True:
             manager_tools.extend([
                 "task_generator",
                 "task_validator"
             ])
         
         # Add coordination tools for hierarchical managers
-        if agent_model.manager_type == "hierarchical":
+        manager_type = getattr(agent_model, 'manager_type', None)
+        if manager_type == "hierarchical":
             manager_tools.extend([
                 "agent_coordinator",
                 "progress_tracker",
@@ -238,7 +246,7 @@ class ManagerAgentWrapper:
             ])
         
         # Add collaboration tools for collaborative managers
-        if agent_model.manager_type == "collaborative":
+        if manager_type == "collaborative":
             manager_tools.extend([
                 "consensus_builder",
                 "conflict_resolver",
@@ -260,19 +268,21 @@ class ManagerAgentWrapper:
         Returns:
             CrewAI Task instance
         """
-        task_kwargs = {
-            "description": description,
-        }
+        # Only pass required parameters to avoid constructor issues
+        if expected_output is None:
+            expected_output = f"Completion of: {description}"
         
         if assigned_agent:
-            task_kwargs["agent"] = assigned_agent
-        
-        if expected_output:
-            task_kwargs["expected_output"] = expected_output
+            return Task(
+                description=description,
+                expected_output=expected_output,
+                agent=assigned_agent
+            )
         else:
-            task_kwargs["expected_output"] = f"Completion of: {description}"
-        
-        return Task(**task_kwargs)
+            return Task(
+                description=description,
+                expected_output=expected_output
+            )
     
     def get_supported_manager_types(self) -> List[str]:
         """Get list of supported manager types.
