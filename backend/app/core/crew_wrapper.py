@@ -1,6 +1,6 @@
 """Crew wrapper for managing CrewAI crews."""
 from typing import List, Optional, Dict, Any, Union
-from crewai import Crew, Agent, Task
+from crewai import Crew, Agent, Task, Process
 from app.models.crew import Crew as CrewModel
 from app.models.agent import Agent as AgentModel
 from app.core.agent_wrapper import AgentWrapper
@@ -452,16 +452,124 @@ class CrewWrapper:
             )
             tasks.append(task)
         
-        # Build crew configuration
+        # Enhance manager agent properties for better CrewAI integration
+        if hasattr(manager_agent, 'allow_delegation'):
+            manager_agent.allow_delegation = True  # Enable delegation capability
+        manager_agent.verbose = True
+        
+        # Build crew configuration with enhanced CrewAI configuration
         final_crew_kwargs = {
             "agents": all_agents,
             "tasks": tasks,
-            "process": "hierarchical",
-            "manager_agent": manager_agent,
-            **crew_kwargs
+            "process": Process.hierarchical,  # Use hierarchical even with pre-assigned tasks
+            "manager_agent": manager_agent,   # Specify manager for CrewAI
+            "verbose": crew_kwargs.get('verbose', True),
+            "memory": crew_kwargs.get('memory', True),
+            **{k: v for k, v in crew_kwargs.items() if k not in ['verbose', 'memory']}
         }
         
         return Crew(**final_crew_kwargs)
+    
+    def create_crew_with_native_delegation(self, agents: List[AgentModel], objective: str, 
+                                         llm_provider=None, **crew_kwargs) -> Crew:
+        """Create crew using CrewAI's native hierarchical delegation.
+        
+        Args:
+            agents: List of agent models (should include one manager agent)
+            objective: High-level objective for the manager to decompose and delegate
+            llm_provider: LLM provider model (optional)
+            **crew_kwargs: Additional crew configuration
+            
+        Returns:
+            Configured CrewAI Crew instance with native delegation
+            
+        Raises:
+            ValueError: If no manager agent is found or configuration is invalid
+        """
+        # Find manager agent
+        manager_model = None
+        regular_models = []
+        
+        for agent_model in agents:
+            if self.manager_agent_wrapper.is_manager_agent(agent_model):
+                if manager_model is not None:
+                    raise ValueError("Only one manager agent is allowed")
+                manager_model = agent_model
+            else:
+                regular_models.append(agent_model)
+        
+        if not manager_model:
+            raise ValueError("No manager agent found in agent list")
+        
+        # Create manager agent with delegation tools
+        manager_agent = self.manager_agent_wrapper.create_manager_agent_with_delegation_tools(
+            manager_model, llm_provider
+        )
+        
+        # Create worker agents
+        worker_agents = [
+            self.agent_wrapper.create_agent_from_model(model, llm_provider)
+            for model in regular_models
+        ]
+        
+        all_agents = [manager_agent] + worker_agents
+        
+        # Create single goal-based task (let manager decompose)
+        goal_task = Task(
+            description=f"""
+            OBJECTIVE: {objective}
+            
+            As the manager, you must:
+            1. Analyze this objective and break it down into specific tasks
+            2. Assign tasks to appropriate team members based on their capabilities
+            3. Coordinate execution and ensure quality delivery
+            4. Monitor progress and provide guidance as needed
+            
+            Available team: {[agent.role for agent in worker_agents]}
+            
+            Use your delegation tools to autonomously decompose this objective into tasks
+            and coordinate the team to achieve the goal efficiently.
+            """,
+            expected_output="Complete achievement of the stated objective with full documentation of the delegation process and results",
+            agent=manager_agent  # Manager owns the goal
+        )
+        
+        # Configure crew for native delegation
+        final_crew_kwargs = {
+            "agents": all_agents,
+            "tasks": [goal_task],  # Single high-level goal
+            "process": Process.hierarchical,  # CRITICAL: Native delegation
+            "manager_agent": manager_agent,   # Specify manager for CrewAI
+            "verbose": crew_kwargs.get('verbose', True),
+            "memory": crew_kwargs.get('memory', True),
+            **{k: v for k, v in crew_kwargs.items() if k not in ['verbose', 'memory']}
+        }
+        
+        return Crew(**final_crew_kwargs)
+    
+    def create_crew_with_manager(self, agents: List[AgentModel], objective: str, 
+                               delegation_mode: str = "native", llm_provider=None, **crew_kwargs) -> Crew:
+        """Unified interface supporting both delegation modes.
+        
+        Args:
+            agents: List of agent models (should include one manager agent)
+            objective: High-level objective or text input
+            delegation_mode: "native" for CrewAI delegation, "task_based" for manual assignment
+            llm_provider: LLM provider model (optional)
+            **crew_kwargs: Additional crew configuration
+            
+        Returns:
+            Configured CrewAI Crew instance
+            
+        Raises:
+            ValueError: If invalid delegation_mode or configuration is invalid
+        """
+        if delegation_mode == "native":
+            return self.create_crew_with_native_delegation(agents, objective, llm_provider, **crew_kwargs)
+        elif delegation_mode == "task_based":
+            return self.create_crew_with_manager_tasks(agents, objective, llm_provider, **crew_kwargs)
+        else:
+            raise ValueError(f"Invalid delegation_mode: {delegation_mode}. Must be 'native' or 'task_based'")
     
     def validate_crew_config(self, crew_config: Dict[str, Any]) -> Dict[str, Any]:
         """Validate crew configuration.

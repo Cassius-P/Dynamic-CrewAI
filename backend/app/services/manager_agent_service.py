@@ -275,6 +275,183 @@ class ManagerAgentService:
             logger.error(f"Failed to execute crew with manager tasks: {e}")
             raise
     
+    async def execute_crew_with_manager_delegation(
+        self,
+        agent_ids: List[int],
+        objective: str,
+        delegation_mode: str = "native",
+        crew_config: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Execute crew using manager agent delegation (native or task-based).
+        
+        Args:
+            agent_ids: List of agent IDs (should include one manager agent)
+            objective: High-level objective for the manager to handle
+            delegation_mode: "native" for CrewAI delegation, "task_based" for manual assignment
+            crew_config: Optional crew configuration overrides
+            
+        Returns:
+            Dictionary containing execution results with delegation information
+        """
+        try:
+            # Validate delegation mode
+            if delegation_mode not in ["native", "task_based"]:
+                raise ValueError(f"Invalid delegation_mode: {delegation_mode}")
+            
+            # Get agent models
+            agent_models = []
+            manager_agent = None
+            
+            for agent_id in agent_ids:
+                agent_model = self.db_session.query(Agent).filter(Agent.id == agent_id).first()
+                if not agent_model:
+                    raise ValueError(f"Agent {agent_id} not found")
+                
+                agent_models.append(agent_model)
+                
+                # Track manager agent
+                if self.manager_wrapper.is_manager_agent(agent_model):
+                    if manager_agent is not None:
+                        raise ValueError("Only one manager agent is allowed")
+                    manager_agent = agent_model
+            
+            if not manager_agent:
+                raise ValueError("No manager agent found in agent list")
+            
+            # Validate manager agent for delegation
+            if delegation_mode == "native":
+                manager_validation = self.manager_wrapper.validate_manager_agent(manager_agent)
+                if not manager_validation["valid"]:
+                    raise ValueError(f"Manager agent invalid for delegation: {manager_validation['errors']}")
+            
+            # Prepare crew configuration
+            final_crew_config = {
+                "verbose": True,
+                "memory": True
+            }
+            if crew_config:
+                final_crew_config.update(crew_config)
+            
+            # Execute with delegation
+            result = await self.execution_engine.execute_crew_with_delegation(
+                agents_models=agent_models,
+                objective=objective,
+                delegation_mode=delegation_mode,
+                execution_id=None,
+                **{k: v for k, v in final_crew_config.items() if k not in ['verbose', 'memory']}
+            )
+            
+            # Track delegation execution in database
+            # SQLAlchemy model instances have .id as an integer value
+            await self._track_delegation_execution(
+                manager_agent.id, agent_ids, objective, delegation_mode, result  # type: ignore
+            )
+            
+            logger.info(f"Successfully executed crew with manager delegation. "
+                       f"Manager: {manager_agent.id}, Mode: {delegation_mode}, "
+                       f"Execution: {result['execution_id']}")
+            
+            return result
+        
+        except Exception as e:
+            logger.error(f"Failed to execute crew with manager delegation: {e}")
+            raise
+    
+    async def _track_delegation_execution(
+        self,
+        manager_agent_id: int,
+        agent_ids: List[int],
+        objective: str,
+        delegation_mode: str,
+        execution_result: Dict[str, Any]
+    ) -> None:
+        """Track delegation execution in the database.
+        
+        Args:
+            manager_agent_id: ID of the manager agent
+            agent_ids: List of all agent IDs involved
+            objective: The objective that was delegated
+            delegation_mode: Delegation mode used
+            execution_result: Result from execution engine
+        """
+        try:
+            # Create execution record with delegation metadata
+            execution_metadata = {
+                "delegation_mode": delegation_mode,
+                "manager_agent_id": manager_agent_id,
+                "involved_agents": agent_ids,
+                "objective": objective,
+                "delegation_decisions": execution_result.get("delegation_decisions", []),
+                "agent_interactions": execution_result.get("agent_interactions", [])
+            }
+            
+            execution = Execution(
+                id=execution_result["execution_id"],
+                status=execution_result["status"],
+                result=execution_result["result"],
+                start_time=datetime.fromisoformat(execution_result["start_time"]),
+                end_time=datetime.fromisoformat(execution_result["end_time"]),
+                execution_time=execution_result["execution_time"],
+                error=execution_result.get("error"),
+                metadata=execution_metadata
+            )
+            
+            self.db_session.add(execution)
+            self.db_session.commit()
+            
+            logger.info(f"Tracked delegation execution {execution_result['execution_id']}")
+        
+        except Exception as e:
+            logger.error(f"Failed to track delegation execution: {e}")
+            # Don't re-raise as this is just tracking
+    
+    def get_manager_delegation_capabilities(self, agent_id: int) -> Dict[str, Any]:
+        """Get manager agent's delegation capabilities and configuration.
+        
+        Args:
+            agent_id: Manager agent ID
+            
+        Returns:
+            Dictionary with delegation capabilities
+        """
+        try:
+            manager_agent = self.get_manager_agent_by_id(agent_id)
+            if not manager_agent:
+                raise ValueError(f"Manager agent {agent_id} not found")
+            
+            capabilities = {
+                "agent_id": agent_id,
+                "role": manager_agent.role,
+                "manager_type": manager_agent.manager_type,
+                "can_generate_tasks": manager_agent.can_generate_tasks,
+                "allow_delegation": manager_agent.allow_delegation,
+                "delegation_modes_supported": [],
+                "delegation_tools_available": [],
+                "manager_config": getattr(manager_agent, 'manager_config', None) or {},
+                "validation_status": self.manager_wrapper.validate_manager_agent(manager_agent)
+            }
+            
+            # Determine supported delegation modes
+            if getattr(manager_agent, 'can_generate_tasks', False):
+                capabilities["delegation_modes_supported"].append("task_based")
+            
+            if getattr(manager_agent, 'allow_delegation', False) and getattr(manager_agent, 'manager_type', None):
+                capabilities["delegation_modes_supported"].append("native")
+            
+            # List available delegation tools
+            if "native" in capabilities["delegation_modes_supported"]:
+                capabilities["delegation_tools_available"] = [
+                    "task_decomposition",
+                    "agent_coordination", 
+                    "delegation_validation"
+                ]
+            
+            return capabilities
+        
+        except Exception as e:
+            logger.error(f"Failed to get delegation capabilities for agent {agent_id}: {e}")
+            raise
+    
     def get_manager_agent_capabilities(self, agent_id: int) -> Dict[str, Any]:
         """Get capabilities and configuration of a manager agent."""
         try:

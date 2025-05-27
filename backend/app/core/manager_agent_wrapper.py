@@ -6,6 +6,7 @@ from crewai import Agent as CrewAIAgent, Task
 from app.models.agent import Agent as AgentModel
 from app.core.agent_wrapper import AgentWrapper
 from app.tools.task_generation import TaskGenerator
+from app.tools.delegation_tools import TaskDecompositionTool, AgentCoordinationTool, DelegationValidationTool
 
 
 class ManagerAgentWrapper:
@@ -62,6 +63,83 @@ class ManagerAgentWrapper:
             crewai_agent.allow_delegation = True
         
         return crewai_agent
+    
+    def create_manager_agent_with_delegation_tools(self, agent_model: AgentModel, 
+                                                  llm_provider=None) -> CrewAIAgent:
+        """Create manager agent optimized for CrewAI native delegation.
+        
+        Args:
+            agent_model: Manager agent model instance from database
+            llm_provider: LLM provider model (optional)
+            
+        Returns:
+            Configured CrewAI Agent instance with delegation tools and capabilities
+            
+        Raises:
+            ValueError: If agent model is not a manager agent
+        """
+        if not self.is_manager_agent(agent_model):
+            raise ValueError("Agent is not a manager agent")
+        
+        # Use base agent wrapper to create the agent
+        crewai_agent = self.agent_wrapper.create_agent_from_model(
+            agent_model, llm_provider
+        )
+        
+        # Enhanced configuration for delegation
+        crewai_agent.allow_delegation = True  # REQUIRED for CrewAI delegation
+        crewai_agent.verbose = True
+        
+        # Add delegation-specific tools
+        delegation_tools = [
+            TaskDecompositionTool(),
+            AgentCoordinationTool(),
+            DelegationValidationTool()
+        ]
+        
+        # Combine existing tools with delegation tools
+        existing_tools = getattr(crewai_agent, 'tools', []) or []
+        crewai_agent.tools = existing_tools + delegation_tools
+        
+        # Enhanced system message for delegation behavior
+        enhanced_backstory = self._build_delegation_system_message(agent_model)
+        crewai_agent.backstory = enhanced_backstory
+        
+        return crewai_agent
+    
+    def _build_delegation_system_message(self, manager_data: AgentModel) -> str:
+        """Build enhanced system message for delegation-capable manager agents.
+        
+        Args:
+            manager_data: Manager agent model
+            
+        Returns:
+            Enhanced backstory/system message for delegation
+        """
+        base_backstory = getattr(manager_data, 'backstory', '')
+        
+        delegation_enhancement = f"""
+        
+        DELEGATION CAPABILITIES:
+        You are {manager_data.role}, a manager agent responsible for coordinating a team through intelligent delegation.
+        
+        Your core capabilities:
+        - Analyze high-level objectives and break them into specific tasks
+        - Assign tasks to team members based on their roles and capabilities  
+        - Monitor progress and provide guidance
+        - Make autonomous delegation decisions using CrewAI's hierarchical process
+        
+        When given an objective:
+        1. Analyze the requirements and decompose into actionable tasks
+        2. Consider each team member's role and expertise
+        3. Create optimal task assignments with clear dependencies
+        4. Delegate tasks using CrewAI's built-in delegation system
+        5. Coordinate execution and ensure quality outcomes
+        
+        Use your delegation tools and CrewAI's hierarchical process to achieve objectives efficiently.
+        """
+        
+        return base_backstory + delegation_enhancement
     
     def generate_tasks_from_text(self, manager_agent: AgentModel, 
                                text_input: str) -> List[Task]:

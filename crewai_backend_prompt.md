@@ -49,6 +49,17 @@ You have access to an MCP server with a `create_pieces_memory` tool for long-ter
 - For CrewAI-specific questions, consult: https://docs.crewai.com/introduction
 - Implement PostgreSQL memory classes as CrewAI doesn't provide them natively
 
+### Critical Architecture Requirements (Phase 4+)
+**IMPORTANT**: Phase 4 must address key architectural misalignments identified in existing implementations:
+
+1. **Avoid Manual Task Assignment Bypass**: Do not implement custom round-robin/sequential task assignment that bypasses CrewAI's native delegation system
+2. **Implement Native Delegation**: Use CrewAI's `manager_agent` parameter and `Process.hierarchical` properly for autonomous delegation
+3. **Goal-First Approach**: Provide high-level objectives to manager agents, not pre-generated task lists
+4. **Dual-Mode Architecture**: Support both native delegation and enhanced manual assignment for backward compatibility
+5. **Delegation Tools**: Implement comprehensive delegation tools (TaskDecomposition, AgentCoordination, DelegationValidation)
+
+These requirements ensure proper CrewAI integration while maintaining existing functionality.
+
 ## Project File Structure
 
 ```
@@ -115,6 +126,8 @@ backend/
 │   ├── tools/
 │   │   ├── __init__.py
 │   │   ├── custom_tools.py
+│   │   ├── delegation_tools.py
+│   │   ├── task_generation.py
 │   │   └── tool_implementations/
 │   │       ├── __init__.py
 │   │       ├── web_search.py
@@ -260,21 +273,34 @@ prometheus-client
 - Memory query and retrieval APIs
 - Memory cleanup and management policies
 
-### Phase 4: Queue System & Task Management
-**Objective**: Implement task queuing and dependency resolution
+### Phase 4: Queue System & Manager Agent CrewAI Integration
+**Objective**: Implement task queuing, dependency resolution, and native CrewAI delegation
+
+**Critical Requirements**:
+- **Dual-Mode Delegation System**: Support both native CrewAI delegation and enhanced task-based assignment
+- **CrewAI Native Integration**: Proper use of `Process.hierarchical` and `manager_agent` parameters
+- **Goal-Centric Approach**: Manager agents receive high-level objectives, not pre-generated tasks
+- **Delegation Tools**: Comprehensive tools for task decomposition, coordination, and validation
+- **Backward Compatibility**: Maintain existing functionality while adding native delegation
 
 **Features**:
-- Celery-based task queue system
-- Task dependency resolution (DAG-based)
-- Manager agent support for crew coordination and task delegation
-- Parallel task execution capability with manager oversight
+- Celery-based task queue system with manager agent coordination
+- Task dependency resolution (DAG-based) under manager supervision
+- **Native CrewAI Delegation**: Goal-based crew execution with autonomous task decomposition
+- **Enhanced Task-Based Mode**: Improved manual assignment with CrewAI best practices
+- **Delegation Tools**: TaskDecompositionTool, AgentCoordinationTool, DelegationValidationTool
+- Parallel task execution capability with intelligent manager oversight
 - Task retry and failure handling coordinated by manager agents
 
 **Key Deliverables**:
 - Functional task queue with Redis backend
+- **Dual-mode crew creation**: Native delegation vs enhanced task-based assignment
+- **Delegation tools implementation**: Complete set of manager agent coordination tools
+- **CrewAI integration**: Proper hierarchical process configuration with manager autonomy
 - Manager agent automatically assigned to dynamic crews with full coordination capabilities
 - Parallel execution of independent tasks under manager supervision
 - Robust error handling and recovery managed by manager agents
+- **Goal-to-task conversion**: High-level objectives automatically decomposed by manager agents
 
 ### Phase 5: Caching & Performance
 **Objective**: Implement Redis caching and performance optimizations
@@ -393,6 +419,14 @@ prometheus-client
 - **Manager agent implementation** must follow CrewAI specifications for task coordination and oversight
 - **Dynamic crews** must automatically receive properly configured manager agents
 - **Task delegation** by manager agents must integrate seamlessly with the queue system
+- **CRITICAL: Delegation Tools Implementation** - The `delegation_tools.py` file must implement:
+  - `TaskDecompositionTool`: Breaks down high-level objectives into specific actionable tasks
+  - `AgentCoordinationTool`: Optimizes task-agent assignments and manages dependencies
+  - `DelegationValidationTool`: Validates delegation decisions for feasibility and quality
+- **CRITICAL: Dual-Mode Support** - CrewWrapper must support both:
+  - **Native CrewAI delegation**: Goal-based execution with `Process.hierarchical` and manager autonomy
+  - **Enhanced task-based mode**: Improved manual assignment maintaining backward compatibility
+- **CRITICAL: Goal-Centric Architecture** - Manager agents must receive high-level objectives, not pre-generated task lists
 
 ## Getting Started
 

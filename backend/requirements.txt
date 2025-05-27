@@ -109,6 +109,7 @@ prompt_toolkit==3.0.51
 propcache==0.3.1
 protobuf==5.29.4
 psycopg2-binary==2.9.10
+psutil
 pure_eval==0.2.3
 pyasn1==0.6.1
 pyasn1_modules==0.4.2

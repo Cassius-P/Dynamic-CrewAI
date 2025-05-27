@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api.v1 import crews, agents, llm_providers, health, memory, manager_agents
+from app.api.v1 import crews, agents, llm_providers, health, memory, manager_agents, metrics
 
 app = FastAPI(
     title=settings.project_name,
@@ -45,6 +45,11 @@ app.include_router(
     manager_agents.router,
     prefix=f"{settings.api_v1_str}/manager-agents",
     tags=["manager-agents"]
+)
+app.include_router(
+    metrics.router,
+    prefix=f"{settings.api_v1_str}/metrics",
+    tags=["metrics"]
 )
 
 

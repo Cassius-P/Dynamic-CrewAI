@@ -62,6 +62,27 @@ class CrewExecutionRequest(BaseModel):
     crew_config: Optional[Dict[str, Any]] = Field(default=None, description="Additional crew configuration")
 
 
+class DelegationExecutionRequest(BaseModel):
+    """Schema for delegation-based crew execution."""
+    agent_ids: List[int] = Field(..., description="List of agent IDs to include in the crew")
+    objective: str = Field(..., description="High-level objective for delegation")
+    delegation_mode: str = Field(default="native", description="Delegation mode: 'native' or 'task_based'")
+    crew_config: Optional[Dict[str, Any]] = Field(default=None, description="Additional crew configuration")
+
+
+class DelegationCapabilities(BaseModel):
+    """Schema for manager agent delegation capabilities."""
+    agent_id: int
+    role: str
+    manager_type: str
+    can_generate_tasks: bool
+    allow_delegation: bool
+    delegation_modes_supported: List[str]
+    delegation_tools_available: List[str]
+    manager_config: Dict[str, Any]
+    validation_status: Dict[str, Any]
+
+
 class ManagerAgentCapabilities(BaseModel):
     """Schema for manager agent capabilities."""
     agent_id: int
@@ -399,4 +420,106 @@ def validate_manager_agent_config(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to validate configuration: {str(e)}"
-        ) 
+        )
+
+
+@router.post("/execute-crew-with-delegation", response_model=Dict[str, Any])
+async def execute_crew_with_delegation(
+    request: DelegationExecutionRequest,
+    db: Session = Depends(get_db)
+):
+    """Execute crew using manager agent delegation (native or task-based)."""
+    try:
+        manager_service = get_manager_agent_service(db)
+        
+        # Validate delegation mode
+        if request.delegation_mode not in ["native", "task_based"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid delegation_mode: {request.delegation_mode}. Must be 'native' or 'task_based'"
+            )
+        
+        result = await manager_service.execute_crew_with_manager_delegation(
+            agent_ids=request.agent_ids,
+            objective=request.objective,
+            delegation_mode=request.delegation_mode,
+            crew_config=request.crew_config
+        )
+        
+        return result
+    
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to execute crew with delegation: {str(e)}"
+        )
+
+
+@router.get("/{agent_id}/delegation-capabilities", response_model=DelegationCapabilities)
+def get_manager_delegation_capabilities(
+    agent_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get manager agent's delegation capabilities and configuration."""
+    try:
+        manager_service = get_manager_agent_service(db)
+        capabilities = manager_service.get_manager_delegation_capabilities(agent_id)
+        return capabilities
+    
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get delegation capabilities: {str(e)}"
+        )
+
+
+@router.post("/{agent_id}/analyze-objective", response_model=Dict[str, Any])
+def analyze_objective_for_delegation(
+    agent_id: int,
+    objective: str = Body(..., description="Objective to analyze for delegation"),
+    db: Session = Depends(get_db)
+):
+    """Preview delegation plan without execution."""
+    try:
+        manager_service = get_manager_agent_service(db)
+        manager_agent = manager_service.get_manager_agent_by_id(agent_id)
+        
+        if not manager_agent:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Manager agent {agent_id} not found"
+            )
+        
+        # Get delegation capabilities
+        capabilities = manager_service.get_manager_delegation_capabilities(agent_id)
+        
+        # Create a preview analysis
+        analysis = {
+            "agent_id": agent_id,
+            "objective": objective,
+            "manager_role": manager_agent.role,
+            "delegation_modes_available": capabilities["delegation_modes_supported"],
+            "delegation_tools_available": capabilities["delegation_tools_available"],
+            "recommended_mode": "native" if "native" in capabilities["delegation_modes_supported"] else "task_based",
+            "analysis": f"Manager agent '{manager_agent.role}' can handle this objective using {len(capabilities['delegation_modes_supported'])} delegation mode(s)."
+        }
+        
+        return analysis
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to analyze objective: {str(e)}"
+        )

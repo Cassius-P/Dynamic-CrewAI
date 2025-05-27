@@ -134,6 +134,120 @@ class ExecutionEngine:
                 "text_input": text_input
             }
     
+    async def execute_crew_with_delegation(self, 
+                                         agents_models: List,
+                                         objective: str,
+                                         delegation_mode: str = "native",
+                                         execution_id: Optional[str] = None,
+                                         **crew_kwargs) -> Dict[str, Any]:
+        """Execute a crew using CrewAI native delegation or enhanced task-based mode.
+        
+        Args:
+            agents_models: List of agent models (should include one manager agent)
+            objective: High-level objective for delegation
+            delegation_mode: "native" for CrewAI delegation, "task_based" for manual assignment
+            execution_id: Optional execution ID for tracking
+            **crew_kwargs: Additional crew configuration
+            
+        Returns:
+            Dictionary containing execution results with delegation information
+        """
+        if not execution_id:
+            execution_id = str(uuid.uuid4())
+        
+        start_time = datetime.utcnow()
+        
+        try:
+            # Create crew with specified delegation mode
+            crew = self.crew_wrapper.create_crew_with_manager(
+                agents_models, objective, delegation_mode, **crew_kwargs
+            )
+            
+            # Validate hierarchical configuration for delegation
+            if delegation_mode == "native":
+                if not hasattr(crew, 'process') or crew.process != "hierarchical":
+                    raise ValueError("Crew must use hierarchical process for native delegation")
+                
+                if not hasattr(crew, 'manager_agent') or crew.manager_agent is None:
+                    raise ValueError("Manager agent required for native delegation")
+            
+            # Execute the crew
+            result = crew.kickoff()
+            
+            end_time = datetime.utcnow()
+            execution_time = (end_time - start_time).total_seconds()
+            
+            # Extract delegation information
+            delegation_info = self._extract_delegation_information(crew, result, delegation_mode)
+            
+            return {
+                "execution_id": execution_id,
+                "status": ExecutionStatus.COMPLETED,
+                "result": str(result),
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "execution_time": execution_time,
+                "error": None,
+                "delegation_mode": delegation_mode,
+                "manager_agent_used": True,
+                "objective": objective,
+                **delegation_info
+            }
+            
+        except Exception as e:
+            end_time = datetime.utcnow()
+            execution_time = (end_time - start_time).total_seconds()
+            
+            return {
+                "execution_id": execution_id,
+                "status": ExecutionStatus.FAILED,
+                "result": None,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "execution_time": execution_time,
+                "error": str(e),
+                "traceback": traceback.format_exc(),
+                "delegation_mode": delegation_mode,
+                "manager_agent_used": True,
+                "objective": objective
+            }
+    
+    def _extract_delegation_information(self, crew, result, delegation_mode: str) -> Dict[str, Any]:
+        """Extract delegation information from crew execution.
+        
+        Args:
+            crew: Executed CrewAI crew
+            result: Execution result
+            delegation_mode: Delegation mode used
+            
+        Returns:
+            Dictionary with delegation information
+        """
+        delegation_info = {
+            "tasks_executed": len(crew.tasks) if hasattr(crew, 'tasks') else 0,
+            "agents_involved": len(crew.agents) if hasattr(crew, 'agents') else 0,
+            "delegation_decisions": [],
+            "agent_interactions": []
+        }
+        
+        if delegation_mode == "native":
+            # For native delegation, try to extract CrewAI's delegation decisions
+            # This would depend on CrewAI's internal logging/tracking
+            delegation_info["delegation_type"] = "native_crewai"
+            delegation_info["process_used"] = "hierarchical"
+            
+            # Extract manager agent information
+            if hasattr(crew, 'manager_agent'):
+                manager_agent = crew.manager_agent
+                delegation_info["manager_agent_role"] = getattr(manager_agent, 'role', 'Unknown')
+                delegation_info["manager_tools_used"] = len(getattr(manager_agent, 'tools', []))
+        else:
+            # For task-based delegation, extract manual assignment information
+            delegation_info["delegation_type"] = "manual_assignment"
+            delegation_info["process_used"] = "hierarchical_with_predefined_tasks"
+        
+        return delegation_info
+    
     def execute_crew_from_model(self, 
                                crew_model,
                                agents_models: List,
