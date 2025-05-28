@@ -6,7 +6,7 @@ from typing import List
 
 from app.tools.task_generation import TaskGenerator
 from app.models.agent import Agent
-from crewai import Task
+from crewai import Task, Agent as CrewAIAgent
 
 
 class TestTaskGenerator:
@@ -165,12 +165,19 @@ class TestTaskGenerator:
         """Test creating task with agent assignment."""
         description = "Test task description"
         expected_output = "Test expected output"
-        mock_agent = Mock()
+        # Create a proper CrewAI agent instead of Mock to avoid Pydantic issues
+        test_agent =  CrewAIAgent(
+            role="Test Agent",
+            goal="Test goal",
+            backstory="Test backstory"
+        )
         
-        task = task_generator.create_task_with_agent(description, expected_output, mock_agent)
+        task = task_generator.create_task_with_agent(description, expected_output, test_agent)
         
         assert isinstance(task, Task)
-        # Note: Can't easily test agent assignment due to Task constructor issues
+        assert task.description == description
+        assert task.expected_output == expected_output
+        # Agent assignment verification would require more complex mocking
 
     def test_enhance_task_descriptions(self, task_generator):
         """Test enhancing task descriptions with context."""

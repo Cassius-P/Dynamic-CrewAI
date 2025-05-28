@@ -75,31 +75,47 @@ class TestEnhancedCrewWrapper:
         mock_crew_instance = Mock(spec=Crew)
         mock_crew.return_value = mock_crew_instance
         
-        # Mock manager agent creation
-        with patch.object(crew_wrapper.manager_agent_wrapper, 'is_manager_agent', return_value=True):
-            with patch.object(crew_wrapper.manager_agent_wrapper, 'create_manager_agent_from_model') as mock_create_manager:
-                with patch.object(crew_wrapper.agent_wrapper, 'create_agent_from_model') as mock_create_agent:
-                    mock_manager = Mock(spec=CrewAIAgent)
-                    mock_manager.role = "Project Manager"
-                    mock_create_manager.return_value = mock_manager
-                    
-                    mock_regular = Mock(spec=CrewAIAgent)
-                    mock_regular.role = "Software Developer"
-                    mock_create_agent.return_value = mock_regular
-                    
-                    result = crew_wrapper.create_crew_from_model(crew_model_with_manager)
-                    
-                    # Verify manager agent was created
-                    mock_create_manager.assert_called_once()
-                    # Verify regular agent was created
-                    mock_create_agent.assert_called_once()
-                    # Verify crew was created
-                    mock_crew.assert_called_once()
-                    
-                    # Check that hierarchical process was set
-                    call_args = mock_crew.call_args[1]
-                    assert call_args.get("process") == "hierarchical"
-                    assert "manager_agent" in call_args
+        # Mock manager agent creation - return True for first agent, False for second
+        with patch('app.core.crew_wrapper.Task') as mock_task:
+            with patch.object(crew_wrapper.manager_agent_wrapper, 'is_manager_agent', side_effect=[True, False]):
+                with patch.object(crew_wrapper.manager_agent_wrapper, 'create_manager_agent_from_model') as mock_create_manager:
+                    with patch.object(crew_wrapper.agent_wrapper, 'create_agent_from_model') as mock_create_agent:
+                        mock_manager = Mock(spec=CrewAIAgent)
+                        mock_manager.role = "Project Manager"
+                        mock_manager.goal = "Coordinate team tasks"
+                        mock_manager.backstory = "Experienced manager"
+                        mock_manager.verbose = True
+                        mock_manager.allow_delegation = True
+                        mock_manager.max_rpm = None
+                        mock_manager._rpm_controller = None
+                        mock_create_manager.return_value = mock_manager
+                        
+                        mock_regular = Mock(spec=CrewAIAgent)
+                        mock_regular.role = "Software Developer"
+                        mock_regular.goal = "Write code"
+                        mock_regular.backstory = "Skilled developer"
+                        mock_regular.verbose = True
+                        mock_regular.max_rpm = None
+                        mock_regular._rpm_controller = None
+                        mock_create_agent.return_value = mock_regular
+                        
+                        # Mock Task creation to prevent validation errors
+                        mock_task_instance = Mock(spec=Task)
+                        mock_task.return_value = mock_task_instance
+                        
+                        result = crew_wrapper.create_crew_from_model(crew_model_with_manager)
+                        
+                        # Verify manager agent was created
+                        mock_create_manager.assert_called_once()
+                        # Verify regular agent was created
+                        mock_create_agent.assert_called_once()
+                        # Verify crew was created
+                        mock_crew.assert_called_once()
+                        
+                        # Check that hierarchical process was set
+                        call_args = mock_crew.call_args[1]
+                        assert call_args.get("process") == "hierarchical"
+                        assert "manager_agent" in call_args
 
     def test_create_crew_from_dict_with_manager_agent(self, crew_wrapper):
         """Test creating crew from dictionary with manager agent."""
@@ -124,26 +140,36 @@ class TestEnhancedCrewWrapper:
         }
         
         with patch('app.core.crew_wrapper.Crew') as mock_crew:
-            with patch.object(crew_wrapper.manager_agent_wrapper, 'create_manager_agent_from_dict') as mock_create_manager:
-                with patch.object(crew_wrapper.agent_wrapper, 'create_agent_from_dict') as mock_create_agent:
-                    mock_manager = Mock(spec=CrewAIAgent)
-                    mock_manager.role = "Project Manager"
-                    mock_manager.goal = "Coordinate team tasks"
-                    mock_manager.backstory = "Experienced manager"
-                    mock_create_manager.return_value = mock_manager
-                    
-                    mock_regular = Mock(spec=CrewAIAgent)
-                    mock_regular.role = "Developer"
-                    mock_create_agent.return_value = mock_regular
-                    
-                    result = crew_wrapper.create_crew_from_dict(crew_config)
-                    
-                    # Verify manager agent was created
-                    mock_create_manager.assert_called_once()
-                    # Verify regular agent was created
-                    mock_create_agent.assert_called_once()
-                    # Verify crew was created
-                    mock_crew.assert_called_once()
+            with patch('app.core.crew_wrapper.Task') as mock_task:
+                with patch.object(crew_wrapper.manager_agent_wrapper, 'create_manager_agent_from_dict') as mock_create_manager:
+                    with patch.object(crew_wrapper.agent_wrapper, 'create_agent_from_dict') as mock_create_agent:
+                        mock_manager = Mock(spec=CrewAIAgent)
+                        mock_manager.role = "Project Manager"
+                        mock_manager.goal = "Coordinate team tasks"
+                        mock_manager.backstory = "Experienced manager"
+                        mock_manager.verbose = True
+                        mock_manager.allow_delegation = True
+                        mock_create_manager.return_value = mock_manager
+                        
+                        mock_regular = Mock(spec=CrewAIAgent)
+                        mock_regular.role = "Developer"
+                        mock_regular.goal = "Write code"
+                        mock_regular.backstory = "Skilled developer"
+                        mock_regular.verbose = True
+                        mock_create_agent.return_value = mock_regular
+                        
+                        # Mock Task creation to prevent validation errors
+                        mock_task_instance = Mock(spec=Task)
+                        mock_task.return_value = mock_task_instance
+                        
+                        result = crew_wrapper.create_crew_from_dict(crew_config)
+                        
+                        # Verify manager agent was created
+                        mock_create_manager.assert_called_once()
+                        # Verify regular agent was created
+                        mock_create_agent.assert_called_once()
+                        # Verify crew was created
+                        mock_crew.assert_called_once()
 
     def test_create_crew_with_multiple_manager_agents_raises_error(self, crew_wrapper):
         """Test that multiple manager agents raise an error."""
@@ -179,40 +205,54 @@ class TestEnhancedCrewWrapper:
         mock_crew_instance = Mock(spec=Crew)
         mock_crew.return_value = mock_crew_instance
         
-        with patch.object(crew_wrapper.manager_agent_wrapper, 'is_manager_agent', side_effect=[True, False]):
-            with patch.object(crew_wrapper.manager_agent_wrapper, 'create_manager_agent_from_model') as mock_create_manager:
-                with patch.object(crew_wrapper.agent_wrapper, 'create_agent_from_model') as mock_create_agent:
-                    with patch.object(crew_wrapper.manager_agent_wrapper, 'generate_tasks_from_text') as mock_generate:
-                        with patch.object(crew_wrapper.manager_agent_wrapper, 'assign_tasks_to_agents') as mock_assign:
-                            # Setup mocks
-                            mock_manager = Mock(spec=CrewAIAgent)
-                            mock_create_manager.return_value = mock_manager
-                            
-                            mock_regular = Mock(spec=CrewAIAgent)
-                            mock_create_agent.return_value = mock_regular
-                            
-                            mock_task = Mock(spec=Task)
-                            mock_task.description = "Test task"
-                            mock_task.expected_output = "Test output"
-                            mock_generate.return_value = [mock_task]
-                            
-                            mock_assign.return_value = [
-                                {"description": "Test task", "expected_output": "Test output", "agent": mock_regular}
-                            ]
-                            
-                            result = crew_wrapper.create_crew_with_manager_tasks(agents, text_input)
-                            
-                            # Verify calls were made
-                            mock_create_manager.assert_called_once()
-                            mock_create_agent.assert_called_once()
-                            mock_generate.assert_called_once_with(manager_agent_model, text_input)
-                            mock_assign.assert_called_once()
-                            mock_crew.assert_called_once()
-                            
-                            # Check crew configuration
-                            call_args = mock_crew.call_args[1]
-                            assert call_args.get("process") == "hierarchical"
-                            assert "manager_agent" in call_args
+        with patch('app.core.crew_wrapper.Task') as mock_task:
+            with patch.object(crew_wrapper.manager_agent_wrapper, 'is_manager_agent', side_effect=[True, False]):
+                with patch.object(crew_wrapper.manager_agent_wrapper, 'create_manager_agent_from_model') as mock_create_manager:
+                    with patch.object(crew_wrapper.agent_wrapper, 'create_agent_from_model') as mock_create_agent:
+                        with patch.object(crew_wrapper.manager_agent_wrapper, 'generate_tasks_from_text') as mock_generate:
+                            with patch.object(crew_wrapper.manager_agent_wrapper, 'assign_tasks_to_agents') as mock_assign:
+                                # Setup mocks
+                                mock_manager = Mock(spec=CrewAIAgent)
+                                mock_manager.role = "Project Manager"
+                                mock_manager.goal = "Coordinate team tasks"
+                                mock_manager.backstory = "Experienced manager"
+                                mock_manager.verbose = True
+                                mock_manager.allow_delegation = True
+                                mock_create_manager.return_value = mock_manager
+                                
+                                mock_regular = Mock(spec=CrewAIAgent)
+                                mock_regular.role = "Software Developer"
+                                mock_regular.goal = "Write code"
+                                mock_regular.backstory = "Skilled developer"
+                                mock_regular.verbose = True
+                                mock_create_agent.return_value = mock_regular
+                                
+                                mock_task_obj = Mock(spec=Task)
+                                mock_task_obj.description = "Test task"
+                                mock_task_obj.expected_output = "Test output"
+                                mock_generate.return_value = [mock_task_obj]
+                                
+                                mock_assign.return_value = [
+                                    {"description": "Test task", "expected_output": "Test output", "agent": mock_regular}
+                                ]
+                                
+                                # Mock Task constructor to prevent validation errors
+                                mock_task_instance = Mock(spec=Task)
+                                mock_task.return_value = mock_task_instance
+                                
+                                result = crew_wrapper.create_crew_with_manager_tasks(agents, text_input)
+                                
+                                # Verify calls were made
+                                mock_create_manager.assert_called_once()
+                                mock_create_agent.assert_called_once()
+                                mock_generate.assert_called_once_with(manager_agent_model, text_input)
+                                mock_assign.assert_called_once()
+                                mock_crew.assert_called_once()
+                                
+                                # Check crew configuration
+                                call_args = mock_crew.call_args[1]
+                                assert call_args.get("process") == "hierarchical"
+                                assert "manager_agent" in call_args
 
     def test_create_crew_with_manager_tasks_no_manager_raises_error(self, crew_wrapper, regular_agent_model):
         """Test that create_crew_with_manager_tasks raises error when no manager agent."""
@@ -244,35 +284,49 @@ class TestEnhancedCrewWrapper:
     def test_manager_agent_task_generation_from_crew_goal(self, crew_wrapper, crew_model_with_manager):
         """Test task generation from crew goal when no explicit tasks provided."""
         with patch('app.core.crew_wrapper.Crew') as mock_crew:
-            with patch.object(crew_wrapper.manager_agent_wrapper, 'is_manager_agent', side_effect=[True, False]):
-                with patch.object(crew_wrapper.manager_agent_wrapper, 'create_manager_agent_from_model') as mock_create_manager:
-                    with patch.object(crew_wrapper.agent_wrapper, 'create_agent_from_model') as mock_create_agent:
-                        with patch.object(crew_wrapper.manager_agent_wrapper, 'generate_tasks_from_text') as mock_generate:
-                            with patch.object(crew_wrapper.manager_agent_wrapper, 'assign_tasks_to_agents') as mock_assign:
-                                # Setup mocks
-                                mock_manager = Mock(spec=CrewAIAgent)
-                                mock_create_manager.return_value = mock_manager
-                                
-                                mock_regular = Mock(spec=CrewAIAgent)
-                                mock_create_agent.return_value = mock_regular
-                                
-                                mock_task = Mock(spec=Task)
-                                mock_task.description = "Generated task"
-                                mock_task.expected_output = "Generated output"
-                                mock_generate.return_value = [mock_task]
-                                
-                                mock_assign.return_value = [
-                                    {"description": "Generated task", "expected_output": "Generated output", "agent": mock_regular}
-                                ]
-                                
-                                # Set source model attribute to enable task generation
-                                setattr(mock_manager, '_source_model', crew_model_with_manager.agents[0])
-                                
-                                result = crew_wrapper.create_crew_from_model(crew_model_with_manager)
-                                
-                                # Verify task generation was attempted
-                                mock_generate.assert_called_once()
-                                mock_assign.assert_called_once()
+            with patch('app.core.crew_wrapper.Task') as mock_task:
+                with patch.object(crew_wrapper.manager_agent_wrapper, 'is_manager_agent', side_effect=[True, False]):
+                    with patch.object(crew_wrapper.manager_agent_wrapper, 'create_manager_agent_from_model') as mock_create_manager:
+                        with patch.object(crew_wrapper.agent_wrapper, 'create_agent_from_model') as mock_create_agent:
+                            with patch.object(crew_wrapper.manager_agent_wrapper, 'generate_tasks_from_text') as mock_generate:
+                                with patch.object(crew_wrapper.manager_agent_wrapper, 'assign_tasks_to_agents') as mock_assign:
+                                    # Setup mocks
+                                    mock_manager = Mock(spec=CrewAIAgent)
+                                    mock_manager.role = "Project Manager"
+                                    mock_manager.goal = "Coordinate team tasks"
+                                    mock_manager.backstory = "Experienced manager"
+                                    mock_manager.verbose = True
+                                    mock_manager.allow_delegation = True
+                                    mock_create_manager.return_value = mock_manager
+                                    
+                                    mock_regular = Mock(spec=CrewAIAgent)
+                                    mock_regular.role = "Software Developer"
+                                    mock_regular.goal = "Write code"
+                                    mock_regular.backstory = "Skilled developer"
+                                    mock_regular.verbose = True
+                                    mock_create_agent.return_value = mock_regular
+                                    
+                                    mock_task_obj = Mock(spec=Task)
+                                    mock_task_obj.description = "Generated task"
+                                    mock_task_obj.expected_output = "Generated output"
+                                    mock_generate.return_value = [mock_task_obj]
+                                    
+                                    mock_assign.return_value = [
+                                        {"description": "Generated task", "expected_output": "Generated output", "agent": mock_regular}
+                                    ]
+                                    
+                                    # Mock Task constructor to prevent validation errors
+                                    mock_task_instance = Mock(spec=Task)
+                                    mock_task.return_value = mock_task_instance
+                                    
+                                    # Set source model attribute to enable task generation
+                                    setattr(mock_manager, '_source_model', crew_model_with_manager.agents[0])
+                                    
+                                    result = crew_wrapper.create_crew_from_model(crew_model_with_manager)
+                                    
+                                    # Verify task generation was attempted
+                                    mock_generate.assert_called_once()
+                                    mock_assign.assert_called_once()
 
     def test_fallback_to_default_tasks_on_generation_failure(self, crew_wrapper, crew_model_with_manager):
         """Test fallback to default tasks when task generation fails."""
@@ -317,11 +371,32 @@ class TestEnhancedCrewWrapper:
         }
         
         with patch('app.core.crew_wrapper.Crew') as mock_crew:
-            with patch.object(crew_wrapper.manager_agent_wrapper, 'create_manager_agent_from_dict'):
-                with patch.object(crew_wrapper.agent_wrapper, 'create_agent_from_dict'):
-                    crew_wrapper.create_crew_from_dict(crew_config)
-                    
-                    # Check that hierarchical process and manager_agent were set
-                    call_args = mock_crew.call_args[1]
-                    assert call_args.get("process") == "hierarchical"
-                    assert "manager_agent" in call_args 
+            with patch('app.core.crew_wrapper.Task') as mock_task:
+                with patch.object(crew_wrapper.manager_agent_wrapper, 'create_manager_agent_from_dict') as mock_create_manager:
+                    with patch.object(crew_wrapper.agent_wrapper, 'create_agent_from_dict') as mock_create_agent:
+                        # Setup mock agents with all required attributes
+                        mock_manager = Mock(spec=CrewAIAgent)
+                        mock_manager.role = "Manager"
+                        mock_manager.goal = "Manage team"
+                        mock_manager.backstory = "Manager"
+                        mock_manager.verbose = True
+                        mock_manager.allow_delegation = True
+                        mock_create_manager.return_value = mock_manager
+                        
+                        mock_regular = Mock(spec=CrewAIAgent)
+                        mock_regular.role = "Developer"
+                        mock_regular.goal = "Code"
+                        mock_regular.backstory = "Developer"
+                        mock_regular.verbose = True
+                        mock_create_agent.return_value = mock_regular
+                        
+                        # Mock Task creation to prevent validation errors
+                        mock_task_instance = Mock(spec=Task)
+                        mock_task.return_value = mock_task_instance
+                        
+                        crew_wrapper.create_crew_from_dict(crew_config)
+                        
+                        # Check that hierarchical process and manager_agent were set
+                        call_args = mock_crew.call_args[1]
+                        assert call_args.get("process") == "hierarchical"
+                        assert "manager_agent" in call_args 

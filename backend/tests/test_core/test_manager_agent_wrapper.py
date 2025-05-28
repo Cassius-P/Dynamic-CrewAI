@@ -60,19 +60,21 @@ class TestManagerAgentWrapper:
         result = manager_agent_wrapper.is_manager_agent(regular_agent)
         assert result is False
 
-    @patch('app.core.manager_agent_wrapper.AgentWrapper')
-    def test_create_manager_agent_from_model(self, mock_agent_wrapper, manager_agent_wrapper, manager_agent_model):
+    def test_create_manager_agent_from_model(self, manager_agent_wrapper, manager_agent_model):
         """Test creating CrewAI manager agent from model."""
-        # Mock the base agent creation
+        # Mock the agent_wrapper attribute directly
         mock_crewai_agent = Mock(spec=CrewAIAgent)
-        mock_agent_wrapper.return_value.create_agent_from_model.return_value = mock_crewai_agent
         
-        result = manager_agent_wrapper.create_manager_agent_from_model(manager_agent_model)
-        
-        assert result == mock_crewai_agent
-        mock_agent_wrapper.return_value.create_agent_from_model.assert_called_once_with(
-            manager_agent_model, None
-        )
+        with patch.object(manager_agent_wrapper, 'agent_wrapper') as mock_agent_wrapper:
+            mock_agent_wrapper.create_agent_from_model.return_value = mock_crewai_agent
+            
+            result = manager_agent_wrapper.create_manager_agent_from_model(manager_agent_model)
+            
+            # Verify the result is the mocked agent (avoid Pydantic comparison)
+            assert result is mock_crewai_agent
+            mock_agent_wrapper.create_agent_from_model.assert_called_once_with(
+                manager_agent_model, None
+            )
 
     def test_create_manager_agent_from_model_invalid(self, manager_agent_wrapper):
         """Test creating manager agent from non-manager model raises error."""
@@ -86,28 +88,26 @@ class TestManagerAgentWrapper:
         with pytest.raises(ValueError, match="Agent is not a manager agent"):
             manager_agent_wrapper.create_manager_agent_from_model(regular_agent)
 
-    @patch('app.core.manager_agent_wrapper.TaskGenerator')
-    def test_generate_tasks_from_text(self, mock_task_generator, manager_agent_wrapper, manager_agent_model):
+    def test_generate_tasks_from_text(self, manager_agent_wrapper, manager_agent_model):
         """Test generating tasks from text input."""
-        # Mock task generator
-        mock_generator = Mock()
-        mock_task_generator.return_value = mock_generator
-        
-        # Mock generated tasks
+        # Create actual Task objects instead of mocks to avoid Pydantic issues
         mock_tasks = [
-            Mock(spec=Task, description="Task 1"),
-            Mock(spec=Task, description="Task 2")
+            Task(description="Task 1", expected_output="Output 1"),
+            Task(description="Task 2", expected_output="Output 2")
         ]
-        mock_generator.generate_tasks.return_value = mock_tasks
         
-        text_input = "Create a web application with user authentication"
-        result = manager_agent_wrapper.generate_tasks_from_text(
-            manager_agent_model, text_input
-        )
-        
-        assert result == mock_tasks
-        assert len(result) == 2
-        mock_generator.generate_tasks.assert_called_once_with(text_input, manager_agent_model)
+        # Mock the task_generator attribute directly
+        with patch.object(manager_agent_wrapper, 'task_generator') as mock_task_generator:
+            mock_task_generator.generate_tasks.return_value = mock_tasks
+            
+            text_input = "Create a web application with user authentication"
+            result = manager_agent_wrapper.generate_tasks_from_text(
+                manager_agent_model, text_input
+            )
+            
+            assert result == mock_tasks
+            assert len(result) == 2
+            mock_task_generator.generate_tasks.assert_called_once_with(text_input, manager_agent_model)
 
     def test_generate_tasks_from_text_non_manager(self, manager_agent_wrapper):
         """Test generating tasks from non-manager agent raises error."""
@@ -221,15 +221,18 @@ class TestManagerAgentWrapper:
             "progress_tracker"
         ]
         
-        with patch('app.core.manager_agent_wrapper.AgentWrapper') as mock_agent_wrapper:
-            mock_crewai_agent = Mock(spec=CrewAIAgent)
-            mock_agent_wrapper.return_value.create_agent_from_model.return_value = mock_crewai_agent
+        # Mock the agent_wrapper attribute directly
+        mock_crewai_agent = Mock(spec=CrewAIAgent)
+        
+        with patch.object(manager_agent_wrapper, 'agent_wrapper') as mock_agent_wrapper:
+            mock_agent_wrapper.create_agent_from_model.return_value = mock_crewai_agent
             
             result = manager_agent_wrapper.create_manager_agent_from_model(manager_agent_model)
             
-            assert result == mock_crewai_agent
+            # Use 'is' instead of '==' to avoid Pydantic comparison
+            assert result is mock_crewai_agent
             # Verify tools were included
-            mock_agent_wrapper.return_value.create_agent_from_model.assert_called_once()
+            mock_agent_wrapper.create_agent_from_model.assert_called_once()
 
     def test_manager_agent_hierarchy_support(self, manager_agent_wrapper, manager_agent_model):
         """Test hierarchical manager agent support."""

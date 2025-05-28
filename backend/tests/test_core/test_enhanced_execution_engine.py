@@ -56,61 +56,57 @@ class TestEnhancedExecutionEngine:
         assert hasattr(execution_engine, 'crew_wrapper')
         assert hasattr(execution_engine, 'manager_agent_wrapper')
 
-    @patch('app.core.execution_engine.CrewWrapper')
-    def test_execute_crew_with_manager_tasks(self, mock_crew_wrapper_class, execution_engine, manager_agent_model, regular_agent_model):
+    def test_execute_crew_with_manager_tasks(self, execution_engine, manager_agent_model, regular_agent_model):
         """Test executing crew with manager agent task generation."""
         agents = [manager_agent_model, regular_agent_model]
         text_input = "Create a web application with user authentication and dashboard"
         
-        # Mock crew wrapper and crew
-        mock_crew_wrapper = Mock()
-        mock_crew_wrapper_class.return_value = mock_crew_wrapper
-        
+        # Mock the crew_wrapper attribute directly on the execution_engine instance
         mock_crew = Mock(spec=Crew)
         mock_crew.kickoff.return_value = "Execution completed successfully"
         mock_crew.tasks = [Mock(), Mock()]  # Mock tasks for count
-        mock_crew_wrapper.create_crew_with_manager_tasks.return_value = mock_crew
         
-        # Execute
-        result = execution_engine.execute_crew_with_manager_tasks(agents, text_input)
-        
-        # Verify crew creation was called
-        mock_crew_wrapper.create_crew_with_manager_tasks.assert_called_once_with(
-            agents, text_input
-        )
-        
-        # Verify crew execution
-        mock_crew.kickoff.assert_called_once()
-        
-        # Verify result structure
-        assert result["status"] == ExecutionStatus.COMPLETED
-        assert result["manager_agent_used"] is True
-        assert result["text_input"] == text_input
-        assert result["generated_tasks_count"] == 2
-        assert "execution_id" in result
-        assert "start_time" in result
-        assert "end_time" in result
+        with patch.object(execution_engine, 'crew_wrapper') as mock_crew_wrapper:
+            mock_crew_wrapper.create_crew_with_manager_tasks.return_value = mock_crew
+            
+            # Execute
+            result = execution_engine.execute_crew_with_manager_tasks(agents, text_input)
+            
+            # Verify crew creation was called
+            mock_crew_wrapper.create_crew_with_manager_tasks.assert_called_once_with(
+                agents, text_input
+            )
+            
+            # Verify crew execution
+            mock_crew.kickoff.assert_called_once()
+            
+            # Verify result structure
+            assert result["status"] == ExecutionStatus.COMPLETED
+            assert result["manager_agent_used"] is True
+            assert result["text_input"] == text_input
+            assert result["generated_tasks_count"] == 2
+            assert "execution_id" in result
+            assert "start_time" in result
+            assert "end_time" in result
 
-    @patch('app.core.execution_engine.CrewWrapper')
-    def test_execute_crew_with_manager_tasks_failure(self, mock_crew_wrapper_class, execution_engine, manager_agent_model, regular_agent_model):
+    def test_execute_crew_with_manager_tasks_failure(self, execution_engine, manager_agent_model, regular_agent_model):
         """Test handling of execution failure with manager agent."""
         agents = [manager_agent_model, regular_agent_model]
         text_input = "Create a web application"
         
-        # Mock crew wrapper to raise exception
-        mock_crew_wrapper = Mock()
-        mock_crew_wrapper_class.return_value = mock_crew_wrapper
-        mock_crew_wrapper.create_crew_with_manager_tasks.side_effect = Exception("Task generation failed")
-        
-        # Execute
-        result = execution_engine.execute_crew_with_manager_tasks(agents, text_input)
-        
-        # Verify failure handling
-        assert result["status"] == ExecutionStatus.FAILED
-        assert result["manager_agent_used"] is True
-        assert result["text_input"] == text_input
-        assert "Task generation failed" in result["error"]
-        assert "traceback" in result
+        # Mock the crew_wrapper attribute directly to raise exception
+        with patch.object(execution_engine, 'crew_wrapper') as mock_crew_wrapper:
+            mock_crew_wrapper.create_crew_with_manager_tasks.side_effect = Exception("Task generation failed")
+            
+            # Execute
+            result = execution_engine.execute_crew_with_manager_tasks(agents, text_input)
+            
+            # Verify failure handling
+            assert result["status"] == ExecutionStatus.FAILED
+            assert result["manager_agent_used"] is True
+            assert result["text_input"] == text_input
+            assert "Task generation failed" in result["error"]
+            assert "traceback" in result
 
     def test_validate_crew_config_with_manager_agent(self, execution_engine):
         """Test crew configuration validation with manager agent."""
@@ -226,7 +222,7 @@ class TestEnhancedExecutionEngine:
         result = execution_engine.validate_crew_config(crew_config)
         
         assert result["valid"] is False
-        assert "has invalid manager_type: invalid_type" in result["errors"]
+        assert any("has invalid manager_type: invalid_type" in error for error in result["errors"])
 
     def test_validate_crew_config_sequential_process_warning(self, execution_engine):
         """Test warning for sequential process with manager agent."""

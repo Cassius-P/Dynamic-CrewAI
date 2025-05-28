@@ -54,8 +54,19 @@ class TestCrewWrapper:
         # Create mock model
         mock_agent_model1 = Mock(spec=AgentModel)
         mock_agent_model1.name = "Agent 1"
+        # Explicitly set manager properties to ensure they're not detected as manager agents
+        mock_agent_model1.manager_type = None
+        mock_agent_model1.can_generate_tasks = False
+        mock_agent_model1.allow_delegation = False
+        mock_agent_model1.manager_config = None
+        
         mock_agent_model2 = Mock(spec=AgentModel)
         mock_agent_model2.name = "Agent 2"
+        # Explicitly set manager properties to ensure they're not detected as manager agents
+        mock_agent_model2.manager_type = None
+        mock_agent_model2.can_generate_tasks = False
+        mock_agent_model2.allow_delegation = False
+        mock_agent_model2.manager_config = None
 
         mock_model = Mock(spec=CrewModel)
         mock_model.name = "Test Crew"
