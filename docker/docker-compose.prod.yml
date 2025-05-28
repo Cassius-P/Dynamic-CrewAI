@@ -1,0 +1,476 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database with pgvector
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: crewai-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-crewai}
+      POSTGRES_USER: ${POSTGRES_USER:-crewai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - crewai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crewai} -d ${POSTGRES_DB:-crewai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Redis for caching and queue backend
+  redis:
+    image: redis:7-alpine
+    container_name: crewai-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - crewai-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Main CrewAI Backend Application
+  app:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: crewai-app
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql://${POSTGRES_USER:-crewai}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-crewai}
+      
+      # Redis configuration
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/0
+      
+      # Application configuration
+      PROJECT_NAME: "CrewAI Backend"
+      ENVIRONMENT: production
+      DEBUG: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+      # Security
+      SECRET_KEY: ${SECRET_KEY}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+      
+      # LLM API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      
+      # Monitoring and alerting
+      EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST}
+      EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:-587}
+      EMAIL_USERNAME: ${EMAIL_USERNAME}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS}
+      EMAIL_TO_ADDRESSES: ${EMAIL_TO_ADDRESSES}
+      
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+      SLACK_CHANNEL: ${SLACK_CHANNEL:-#alerts}
+      
+      # Performance
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
+      UVICORN_MAX_REQUESTS: ${UVICORN_MAX_REQUESTS:-10000}
+      UVICORN_MAX_REQUESTS_JITTER: ${UVICORN_MAX_REQUESTS_JITTER:-1000}
+    
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    
+    volumes:
+      - app_logs:/app/logs
+      - app_data:/app/data
+    
+    networks:
+      - crewai-network
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/readiness"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    restart: unless-stopped
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "service=crewai-app"
+
+  # Celery Workers for background task processing
+  celery-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: crewai-celery-worker
+    command: celery -A app.queue.task_queue worker --loglevel=${LOG_LEVEL:-info} --concurrency=${CELERY_WORKER_CONCURRENCY:-4} --queues=crew_execution,retry,default --max-tasks-per-child=1000
+    
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql://${POSTGRES_USER:-crewai}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-crewai}
+      
+      # Redis configuration
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/0
+      
+      # Application configuration
+      PROJECT_NAME: "CrewAI Backend"
+      ENVIRONMENT: production
+      DEBUG: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+      # LLM API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+    
+    volumes:
+      - app_logs:/app/logs
+      - celery_data:/app/data
+    
+    networks:
+      - crewai-network
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.queue.task_queue", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    
+    restart: unless-stopped
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    deploy:
+      replicas: ${CELERY_WORKER_REPLICAS:-2}
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+        labels: "service=celery-worker"
+
+  # Celery Beat for scheduled tasks
+  celery-beat:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: crewai-celery-beat
+    command: celery -A app.queue.task_queue beat --loglevel=${LOG_LEVEL:-info} --pidfile=/tmp/celerybeat.pid
+    
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql://${POSTGRES_USER:-crewai}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-crewai}
+      
+      # Redis configuration
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/0
+      
+      # Application configuration
+      PROJECT_NAME: "CrewAI Backend"
+      ENVIRONMENT: production
+      DEBUG: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    
+    volumes:
+      - app_logs:/app/logs
+      - celery_beat_data:/app/data
+    
+    networks:
+      - crewai-network
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    restart: unless-stopped
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        labels: "service=celery-beat"
+
+  # Flower for Celery monitoring
+  flower:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: crewai-flower
+    command: celery -A app.queue.task_queue flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD}
+    
+    environment:
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/0
+      FLOWER_BASIC_AUTH: ${FLOWER_USER:-admin}:${FLOWER_PASSWORD}
+    
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    
+    networks:
+      - crewai-network
+    
+    depends_on:
+      redis:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5555/api/workers"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    restart: unless-stopped
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+
+  # Nginx reverse proxy with SSL termination
+  nginx:
+    image: nginx:alpine
+    container_name: crewai-nginx
+    
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    
+    networks:
+      - crewai-network
+    
+    depends_on:
+      - app
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    restart: unless-stopped
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+
+  # Prometheus for metrics collection (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: crewai-prometheus
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    
+    networks:
+      - crewai-network
+    
+    depends_on:
+      - app
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    restart: unless-stopped
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    profiles:
+      - monitoring
+
+  # Grafana for metrics visualization (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: crewai-grafana
+    
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_INSTALL_PLUGINS: "grafana-clock-panel,grafana-simple-json-datasource"
+    
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    
+    networks:
+      - crewai-network
+    
+    depends_on:
+      - prometheus
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    restart: unless-stopped
+    
+    security_opt:
+      - no-new-privileges:true
+    
+    profiles:
+      - monitoring
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_logs:
+    driver: local
+  app_data:
+    driver: local
+  celery_data:
+    driver: local
+  celery_beat_data:
+    driver: local
+  nginx_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  crewai-network:
+    driver: bridge
+    name: crewai-production
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16 
