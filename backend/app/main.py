@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api.v1 import crews, agents, llm_providers, health, memory, manager_agents, metrics
+from app.api.v1 import crews, agents, llm_providers, health, memory, manager_agents, metrics, websocket_endpoints
 
 app = FastAPI(
     title=settings.project_name,
@@ -50,6 +50,11 @@ app.include_router(
     metrics.router,
     prefix=f"{settings.api_v1_str}/metrics",
     tags=["metrics"]
+)
+app.include_router(
+    websocket_endpoints.router,
+    prefix=f"{settings.api_v1_str}/websocket",
+    tags=["websocket"]
 )
 
 
