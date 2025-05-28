@@ -5,11 +5,11 @@ You are a senior Python developer tasked with building a comprehensive backend s
 ## Core Requirements
 
 Build a FastAPI-based backend that enables:
-- **Static Crews**: User-managed agents and tools with optional manager agent configuration
-- **Dynamic Crews**: AI-generated crews using specialized tools with automatic manager agent assignment
-- **Real-time Execution**: WebSocket updates for crew execution states including manager agent coordination
+- **Static Crews**: User-managed agents and tools
+- **Dynamic Crews**: AI-generated crews using specialized tools
+- **Real-time Execution**: WebSocket updates for crew execution states
 - **Memory System**: PostgreSQL-based short-term, long-term, and entity memory for CrewAI using pgvector for semantic search
-- **Queue System**: Task parallelization and dependency management with manager agent oversight
+- **Queue System**: Task parallelization and dependency management
 - **Tool Registry**: Centralized tool management (CrewAI + custom tools)
 - **Multi-LLM Support**: OpenAI, Anthropic, and Ollama integration
 - **Caching Layer**: Redis for performance optimization
@@ -29,36 +29,10 @@ Build a FastAPI-based backend that enables:
 - **PAUSE** after each phase completion and wait for explicit approval to continue
 - If tests fail, debug and fix until all tests pass before pausing
 - If uncertain about any implementation detail, **PAUSE** and ask for clarification
-- **Use MCP create_pieces_memory tool** when finishing big steps within a phase to store long-term memory of completed work
-
-### MCP Server Integration
-You have access to an MCP server with a `create_pieces_memory` tool for long-term storage. Use this tool to:
-- Store completed implementation details after finishing major components
-- Record key decisions and architectural choices made during development
-- Save important code patterns and solutions for future reference
-- Document phase completion status and key deliverables
-
-**When to use create_pieces_memory:**
-- After implementing core database models in a phase
-- After completing major wrapper classes or services
-- After finishing API endpoint implementations
-- After achieving significant testing milestones
-- Before pausing for phase approval
 
 ### Reference Documentation
 - For CrewAI-specific questions, consult: https://docs.crewai.com/introduction
 - Implement PostgreSQL memory classes as CrewAI doesn't provide them natively
-
-### Critical Architecture Requirements (Phase 4+)
-**IMPORTANT**: Phase 4 must address key architectural misalignments identified in existing implementations:
-
-1. **Avoid Manual Task Assignment Bypass**: Do not implement custom round-robin/sequential task assignment that bypasses CrewAI's native delegation system
-2. **Implement Native Delegation**: Use CrewAI's `manager_agent` parameter and `Process.hierarchical` properly for autonomous delegation
-3. **Goal-First Approach**: Provide high-level objectives to manager agents, not pre-generated task lists
-4. **Dual-Mode Architecture**: Support both native delegation and enhanced manual assignment for backward compatibility
-5. **Delegation Tools**: Implement comprehensive delegation tools (TaskDecomposition, AgentCoordination, DelegationValidation)
-
-These requirements ensure proper CrewAI integration while maintaining existing functionality.
 
 ## Project File Structure
 
@@ -126,8 +100,6 @@ backend/
 │   ├── tools/
 │   │   ├── __init__.py
 │   │   ├── custom_tools.py
-│   │   ├── delegation_tools.py
-│   │   ├── task_generation.py
 │   │   └── tool_implementations/
 │   │       ├── __init__.py
 │   │       ├── web_search.py
@@ -273,34 +245,21 @@ prometheus-client
 - Memory query and retrieval APIs
 - Memory cleanup and management policies
 
-### Phase 4: Queue System & Manager Agent CrewAI Integration
-**Objective**: Implement task queuing, dependency resolution, and native CrewAI delegation
-
-**Critical Requirements**:
-- **Dual-Mode Delegation System**: Support both native CrewAI delegation and enhanced task-based assignment
-- **CrewAI Native Integration**: Proper use of `Process.hierarchical` and `manager_agent` parameters
-- **Goal-Centric Approach**: Manager agents receive high-level objectives, not pre-generated tasks
-- **Delegation Tools**: Comprehensive tools for task decomposition, coordination, and validation
-- **Backward Compatibility**: Maintain existing functionality while adding native delegation
+### Phase 4: Queue System & Task Management
+**Objective**: Implement task queuing and dependency resolution
 
 **Features**:
-- Celery-based task queue system with manager agent coordination
-- Task dependency resolution (DAG-based) under manager supervision
-- **Native CrewAI Delegation**: Goal-based crew execution with autonomous task decomposition
-- **Enhanced Task-Based Mode**: Improved manual assignment with CrewAI best practices
-- **Delegation Tools**: TaskDecompositionTool, AgentCoordinationTool, DelegationValidationTool
-- Parallel task execution capability with intelligent manager oversight
-- Task retry and failure handling coordinated by manager agents
+- Celery-based task queue system
+- Task dependency resolution (DAG-based)
+- Manager agent support for crew coordination
+- Parallel task execution capability
+- Task retry and failure handling
 
 **Key Deliverables**:
 - Functional task queue with Redis backend
-- **Dual-mode crew creation**: Native delegation vs enhanced task-based assignment
-- **Delegation tools implementation**: Complete set of manager agent coordination tools
-- **CrewAI integration**: Proper hierarchical process configuration with manager autonomy
-- Manager agent automatically assigned to dynamic crews with full coordination capabilities
-- Parallel execution of independent tasks under manager supervision
-- Robust error handling and recovery managed by manager agents
-- **Goal-to-task conversion**: High-level objectives automatically decomposed by manager agents
+- Manager agent automatically assigned to dynamic crews
+- Parallel execution of independent tasks
+- Robust error handling and recovery
 
 ### Phase 5: Caching & Performance
 **Objective**: Implement Redis caching and performance optimizations
@@ -341,15 +300,14 @@ prometheus-client
 - Dynamic crew generator using LLM
 - Automatic crew composition based on task requirements
 - Intelligent agent and tool selection
-- Automatic manager agent assignment with coordination capabilities
 - Dynamic crew optimization and validation
 - Integration with existing crew execution pipeline
 
 **Key Deliverables**:
-- Functional dynamic crew generation with automatic manager agent coordination
-- Automatic crew optimization with manager oversight
-- Seamless integration between static and dynamic crews
-- Comprehensive validation of generated crews including manager agent capabilities
+- Functional dynamic crew generation
+- Automatic crew optimization
+- Seamless integration with static crews
+- Comprehensive validation of generated crews
 
 ### Phase 8: Monitoring & Finalization
 **Objective**: Complete monitoring system and final optimizations
@@ -369,25 +327,6 @@ prometheus-client
 - Comprehensive test coverage (>90%)
 - Performance benchmarks and optimization
 
-### Phase 9: Advanced Parallel Task Execution
-**Objective**: Implement custom parallelization system for manager agents
-
-**Features**:
-- Custom Redis-based task distribution system
-- True parallel task execution bypassing CrewAI's sequential limitations
-- Advanced dependency resolution with Redis coordination
-- Agent task pulling mechanism with dependency checking
-- Manager agent coordination of parallel workflows
-- Performance comparison between built-in and custom parallelization
-
-**Key Deliverables**:
-- Custom parallel execution engine for manager agents
-- Redis-based task queue with dependency resolution
-- Agent polling system for task distribution
-- Performance metrics comparing parallel vs sequential execution
-- Seamless integration with existing CrewAI system
-- Advanced task coordination and result aggregation
-
 ## Success Criteria for Each Phase
 
 1. **All tests pass** (100% pass rate)
@@ -396,7 +335,6 @@ prometheus-client
 4. **Integration tests validate** end-to-end functionality
 5. **Performance tests meet** acceptable thresholds
 6. **Code coverage exceeds** 85% for each phase
-7. **Key implementation decisions stored** using create_pieces_memory tool
 
 ## Response Guidelines
 
@@ -406,7 +344,6 @@ prometheus-client
 - **Use proper error handling** and validation
 - **Follow Python best practices** and PEP 8 conventions
 - **Implement proper logging** for debugging and monitoring
-- **Use create_pieces_memory tool** after completing major implementation steps to store progress and decisions
 
 ## Important Notes
 
@@ -416,17 +353,6 @@ prometheus-client
 - **Use design patterns** appropriate for each component
 - **Maintain clean separation** of concerns between layers
 - **Write comprehensive tests** before implementing features
-- **Manager agent implementation** must follow CrewAI specifications for task coordination and oversight
-- **Dynamic crews** must automatically receive properly configured manager agents
-- **Task delegation** by manager agents must integrate seamlessly with the queue system
-- **CRITICAL: Delegation Tools Implementation** - The `delegation_tools.py` file must implement:
-  - `TaskDecompositionTool`: Breaks down high-level objectives into specific actionable tasks
-  - `AgentCoordinationTool`: Optimizes task-agent assignments and manages dependencies
-  - `DelegationValidationTool`: Validates delegation decisions for feasibility and quality
-- **CRITICAL: Dual-Mode Support** - CrewWrapper must support both:
-  - **Native CrewAI delegation**: Goal-based execution with `Process.hierarchical` and manager autonomy
-  - **Enhanced task-based mode**: Improved manual assignment maintaining backward compatibility
-- **CRITICAL: Goal-Centric Architecture** - Manager agents must receive high-level objectives, not pre-generated task lists
 
 ## Getting Started
 
