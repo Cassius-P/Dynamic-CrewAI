@@ -1,5 +1,5 @@
 """
-Comprehensive health check system for all system components.
+Simplified health check system for collecting system component data.
 """
 import asyncio
 import time
@@ -16,7 +16,7 @@ import structlog
 from app.config import settings
 from app.database import get_db
 from app.utils.cache import cache_manager
-from app.queue.task_queue import celery_app
+from app.task_queue.task_queue import celery_app
 from app.core.llm_wrapper import LLMWrapper
 
 logger = structlog.get_logger()
@@ -48,12 +48,86 @@ class ComponentHealth:
         return data
 
 class HealthChecker:
-    """Comprehensive health monitoring system."""
+    """Simple health monitoring system for data collection."""
     
     def __init__(self):
         self._cache_ttl = 30  # Cache health check results for 30 seconds
         self._timeout = 10.0  # Default timeout for health checks
         self._health_cache: Dict[str, Tuple[ComponentHealth, datetime]] = {}
+    
+    async def check_all_components_and_store(self, db: Session, use_cache: bool = True) -> Dict[str, ComponentHealth]:
+        """Check health of all system components and store values to database."""
+        try:
+            # Get health status of all components
+            health_status = await self.check_all_components(use_cache)
+            
+            # Store health values to database
+            await self._store_health_metrics(db, health_status)
+            
+            return health_status
+            
+        except Exception as e:
+            logger.error("Error checking and storing system health", error=str(e))
+            raise
+    
+    async def _store_health_metrics(self, db: Session, health_status: Dict[str, ComponentHealth]):
+        """Store health check values to database as performance metrics."""
+        try:
+            from app.models.metrics import PerformanceMetric
+            
+            for component_name, health in health_status.items():
+                # Convert health status to numeric value for database storage
+                status_value = {
+                    HealthStatus.HEALTHY: 1.0,
+                    HealthStatus.DEGRADED: 0.5,
+                    HealthStatus.UNHEALTHY: 0.0,
+                    HealthStatus.UNKNOWN: -1.0
+                }[health.status]
+                
+                # Store health status metric
+                health_metric = PerformanceMetric(
+                    metric_type="health",
+                    metric_name=f"{component_name}_status",
+                    value=status_value,
+                    unit="score",
+                    tags={
+                        "component": component_name,
+                        "message": health.message,
+                        "response_time_ms": str(health.response_time_ms) if health.response_time_ms else "null"
+                    }
+                )
+                db.add(health_metric)
+                
+                # Store response time if available
+                if health.response_time_ms is not None:
+                    response_time_metric = PerformanceMetric(
+                        metric_type="health",
+                        metric_name=f"{component_name}_response_time",
+                        value=health.response_time_ms,
+                        unit="milliseconds",
+                        tags={"component": component_name}
+                    )
+                    db.add(response_time_metric)
+                
+                # Store additional details as metrics if available
+                if health.details:
+                    for detail_key, detail_value in health.details.items():
+                        if isinstance(detail_value, (int, float)):
+                            detail_metric = PerformanceMetric(
+                                metric_type="health_detail",
+                                metric_name=f"{component_name}_{detail_key}",
+                                value=float(detail_value),
+                                unit="value",
+                                tags={"component": component_name, "detail": detail_key}
+                            )
+                            db.add(detail_metric)
+            
+            db.commit()
+            logger.debug(f"Stored health metrics for {len(health_status)} components")
+            
+        except Exception as e:
+            db.rollback()
+            logger.error("Error storing health metrics to database", error=str(e))
     
     async def check_all_components(self, use_cache: bool = True) -> Dict[str, ComponentHealth]:
         """Check health of all system components."""
@@ -644,56 +718,4 @@ class HealthChecker:
                 name="manager_agent",
                 status=HealthStatus.UNHEALTHY,
                 message=f"Manager agent error: {str(e)}"
-            )
-    
-    def get_overall_health(self, component_healths: Dict[str, ComponentHealth]) -> ComponentHealth:
-        """Calculate overall system health from component healths."""
-        unhealthy_count = 0
-        degraded_count = 0
-        healthy_count = 0
-        unknown_count = 0
-        
-        critical_components = ['database', 'redis', 'celery']
-        critical_unhealthy = False
-        
-        for name, health in component_healths.items():
-            if health.status == HealthStatus.UNHEALTHY:
-                unhealthy_count += 1
-                if name in critical_components:
-                    critical_unhealthy = True
-            elif health.status == HealthStatus.DEGRADED:
-                degraded_count += 1
-            elif health.status == HealthStatus.HEALTHY:
-                healthy_count += 1
-            else:
-                unknown_count += 1
-        
-        # Determine overall status
-        if critical_unhealthy or unhealthy_count > 3:
-            overall_status = HealthStatus.UNHEALTHY
-            message = f"System unhealthy: {unhealthy_count} components failed"
-        elif degraded_count > 0 or unhealthy_count > 0:
-            overall_status = HealthStatus.DEGRADED
-            message = f"System degraded: {unhealthy_count} unhealthy, {degraded_count} degraded"
-        elif unknown_count > 2:
-            overall_status = HealthStatus.DEGRADED
-            message = f"System status unclear: {unknown_count} components unknown"
-        else:
-            overall_status = HealthStatus.HEALTHY
-            message = f"System healthy: {healthy_count} components operational"
-        
-        return ComponentHealth(
-            name="overall",
-            status=overall_status,
-            message=message,
-            details={
-                "component_counts": {
-                    "healthy": healthy_count,
-                    "degraded": degraded_count,
-                    "unhealthy": unhealthy_count,
-                    "unknown": unknown_count
-                },
-                "critical_unhealthy": critical_unhealthy,
-                "total_components": len(component_healths)
-            }
-        ) 
+            ) 

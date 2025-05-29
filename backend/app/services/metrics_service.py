@@ -25,6 +25,148 @@ class MetricsService:
         self._last_resource_collection = None
         self._collection_interval = 60  # seconds
     
+    async def run_monitoring_cycle(self, db: Session):
+        """Run a complete monitoring cycle: collect metrics, check alerts, store to database."""
+        try:
+            logger.debug("Starting monitoring cycle")
+            
+            # Collect system metrics
+            await self.collect_system_metrics(db)
+            
+            # Collect health metrics and check alerts
+            await self._collect_health_and_alerts(db)
+            
+            # Collect cache metrics
+            await self._collect_cache_metrics(db)
+            
+            # Collect performance metrics
+            await self._collect_performance_metrics(db)
+            
+            logger.debug("Monitoring cycle completed successfully")
+            
+        except Exception as e:
+            logger.error("Error in monitoring cycle", error=str(e))
+    
+    async def _collect_health_and_alerts(self, db: Session):
+        """Collect health metrics and check alert conditions."""
+        try:
+            from app.monitoring.health_checks import HealthChecker
+            from app.monitoring.alerts import alert_manager
+            
+            # Initialize health checker
+            health_checker = HealthChecker()
+            
+            # Check all components and store health metrics
+            component_healths = await health_checker.check_all_components_and_store(db)
+            
+            # Extract metrics for alert checking
+            metrics = {}
+            for component_name, health in component_healths.items():
+                # Convert health status to numeric value for alerts
+                health_value = {
+                    "healthy": 1.0,
+                    "degraded": 0.5,
+                    "unhealthy": 0.0,
+                    "unknown": -1.0
+                }.get(health.status.value, 0.0)
+                
+                # Store component metrics
+                metrics[component_name] = {
+                    f"{component_name}_health": health_value,
+                    f"{component_name}_response_time": health.response_time_ms or 0.0
+                }
+                
+                # Add specific metrics from health details if available
+                if health.details:
+                    for detail_key, detail_value in health.details.items():
+                        if isinstance(detail_value, (int, float)):
+                            metrics[component_name][f"{component_name}_{detail_key}"] = float(detail_value)
+            
+            # Check alert conditions and store alert data
+            await alert_manager.check_alert_conditions_and_store(db, metrics)
+            
+        except Exception as e:
+            logger.error("Error collecting health and alerts", error=str(e))
+    
+    async def _collect_cache_metrics(self, db: Session):
+        """Collect and store cache performance metrics."""
+        try:
+            cache_stats = cache_manager.get_stats()
+            
+            # Store cache metrics as performance metrics
+            cache_metrics = [
+                ("cache", "hit_rate_percent", cache_stats.get("hit_rate_percent", 0), "percent"),
+                ("cache", "hits", cache_stats.get("hits", 0), "count"),
+                ("cache", "misses", cache_stats.get("misses", 0), "count"),
+                ("cache", "l1_hits", cache_stats.get("l1_hits", 0), "count"),
+                ("cache", "l2_hits", cache_stats.get("l2_hits", 0), "count"),
+                ("cache", "invalidations", cache_stats.get("invalidations", 0), "count"),
+                ("cache", "errors", cache_stats.get("errors", 0), "count")
+            ]
+            
+            for metric_type, metric_name, value, unit in cache_metrics:
+                metric = PerformanceMetric(
+                    metric_type=metric_type,
+                    metric_name=metric_name,
+                    value=float(value),
+                    unit=unit,
+                    tags={"source": "cache_manager"}
+                )
+                db.add(metric)
+            
+            db.commit()
+            
+        except Exception as e:
+            logger.error("Error collecting cache metrics", error=str(e))
+    
+    async def _collect_performance_metrics(self, db: Session):
+        """Collect and store general performance metrics."""
+        try:
+            # Get API performance data
+            api_performance = performance_monitor.get_api_performance()
+            
+            if api_performance.get("request_count", 0) > 0:
+                # Store API performance metrics
+                api_metrics = [
+                    ("api", "request_count", api_performance.get("request_count", 0), "count"),
+                    ("api", "overall_avg_duration", api_performance.get("overall_avg", 0), "seconds")
+                ]
+                
+                for metric_type, metric_name, value, unit in api_metrics:
+                    metric = PerformanceMetric(
+                        metric_type=metric_type,
+                        metric_name=metric_name,
+                        value=float(value),
+                        unit=unit,
+                        tags={"source": "performance_monitor"}
+                    )
+                    db.add(metric)
+            
+            # Get resource status
+            resource_status = resource_manager.get_resource_status()
+            
+            # Store resource metrics
+            resource_metrics = [
+                ("resource", "active_executions", resource_status.get("active_executions", 0), "count"),
+                ("resource", "max_executions", resource_status.get("max_executions", 0), "count"),
+                ("resource", "execution_utilization", resource_status.get("execution_utilization", 0), "percent")
+            ]
+            
+            for metric_type, metric_name, value, unit in resource_metrics:
+                metric = PerformanceMetric(
+                    metric_type=metric_type,
+                    metric_name=metric_name,
+                    value=float(value),
+                    unit=unit,
+                    tags={"source": "resource_manager"}
+                )
+                db.add(metric)
+            
+            db.commit()
+            
+        except Exception as e:
+            logger.error("Error collecting performance metrics", error=str(e))
+    
     async def collect_system_metrics(self, db: Session):
         """Collect current system resource metrics."""
         try:

@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 import uuid
 
-from app.queue.task_manager import (
+from app.task_queue.task_manager import (
     TaskManager,
     ExecutionState,
     ExecutionResult,
@@ -148,7 +148,7 @@ class TestTaskManager:
         
         assert status is None
     
-    @patch('app.queue.task_manager.TaskQueue')
+    @patch('app.task_queue.task_manager.TaskQueue')
     def test_get_execution_status_found(self, mock_task_queue, task_manager, sample_crew_config):
         """Test getting status for existing execution."""
         mock_queue_instance = mock_task_queue.return_value
@@ -306,7 +306,7 @@ class TestTaskManager:
         assert graph_info["total_tasks"] == 3
         assert not graph_info["has_cycles"]
     
-    @patch('app.queue.task_manager.TaskQueue')
+    @patch('app.task_queue.task_manager.TaskQueue')
     def test_process_completed_tasks(self, mock_task_queue, task_manager, sample_crew_config):
         """Test processing completed tasks and updating dependencies."""
         mock_queue_instance = mock_task_queue.return_value

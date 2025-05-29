@@ -1,23 +1,20 @@
 """
-Monitoring and alerting system for CrewAI backend.
+Simplified monitoring system for CrewAI backend.
 
-This module provides comprehensive monitoring capabilities including:
-- Advanced health checks for all system components
-- Alert management and notification systems  
-- Performance monitoring and analytics
-- Production-ready monitoring tools
+This module provides monitoring capabilities including:
+- Health checks for all system components
+- Alert management for storing alert data to database
+- Performance monitoring and metrics collection
+- Data storage without notifications
 """
 
 from .health_checks import HealthChecker, ComponentHealth
-from .alerts import AlertManager, AlertSeverity, AlertStatus
-from .notifications import NotificationManager, NotificationChannel
+from .alerts import SimpleAlertManager, AlertSeverity, AlertStatus
 
 __all__ = [
     "HealthChecker", 
     "ComponentHealth",
-    "AlertManager", 
+    "SimpleAlertManager", 
     "AlertSeverity", 
-    "AlertStatus",
-    "NotificationManager", 
-    "NotificationChannel"
+    "AlertStatus"
 ] 

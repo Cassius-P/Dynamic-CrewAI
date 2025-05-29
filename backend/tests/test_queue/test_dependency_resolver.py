@@ -3,7 +3,7 @@
 import pytest
 from typing import Dict, List, Set
 
-from app.queue.dependency_resolver import (
+from app.task_queue.dependency_resolver import (
     DependencyResolver,
     CircularDependencyError,
     DependencyNode,

@@ -1,5 +1,5 @@
 """
-Enhanced health check API endpoints with comprehensive monitoring.
+Simplified health check API endpoints with database storage.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -51,18 +51,22 @@ async def basic_health_check(db: Session = Depends(get_db)):
 @router.get("/detailed", response_model=DetailedHealthResponse)
 async def detailed_health_check(
     use_cache: bool = Query(True, description="Use cached health results"),
+    store_to_db: bool = Query(True, description="Store health metrics to database"),
     db: Session = Depends(get_db)
 ):
-    """Comprehensive health check for all system components."""
+    """Comprehensive health check for all system components with database storage."""
     try:
-        # Get health status for all components
-        component_healths = await health_checker.check_all_components(use_cache=use_cache)
+        # Get health status for all components and optionally store to database
+        if store_to_db:
+            component_healths = await health_checker.check_all_components_and_store(db, use_cache=use_cache)
+        else:
+            component_healths = await health_checker.check_all_components(use_cache=use_cache)
         
-        # Calculate overall health
-        overall_health = health_checker.get_overall_health(component_healths)
-        
-        # Get system metrics
-        system_metrics = await metrics_service.collect_system_metrics(db)
+        # Calculate basic overall health
+        healthy_count = sum(1 for h in component_healths.values() if h.status.value == "healthy")
+        total_count = len(component_healths)
+        overall_status = "healthy" if healthy_count > total_count * 0.8 else "degraded"
+        overall_message = f"System status: {healthy_count}/{total_count} components healthy"
         
         # Convert component healths to response format
         components = {
@@ -91,8 +95,8 @@ async def detailed_health_check(
         }
         
         return DetailedHealthResponse(
-            overall_status=overall_health.status.value,
-            overall_message=overall_health.message,
+            overall_status=overall_status,
+            overall_message=overall_message,
             timestamp=datetime.utcnow().isoformat(),
             components=components,
             alert_summary=alert_summary,
@@ -101,9 +105,9 @@ async def detailed_health_check(
                 "project_name": settings.project_name,
                 "environment": getattr(settings, 'environment', 'unknown'),
                 "debug": settings.debug,
-                "uptime_seconds": (datetime.utcnow() - getattr(settings, 'start_time', datetime.utcnow())).total_seconds()
+                "uptime_seconds": 0  # Simplified - no need for precise uptime tracking
             },
-            performance_summary=overall_health.details
+            performance_summary={"healthy_ratio": healthy_count / total_count if total_count > 0 else 0}
         )
         
     except Exception as e:
@@ -196,19 +200,19 @@ async def health_dependencies():
         )
 
 @router.get("/alerts", response_model=AlertSummaryResponse)
-async def get_active_alerts():
+async def get_active_alerts(db: Session = Depends(get_db)):
     """Get summary of active alerts and alert statistics."""
     try:
         # Get active alerts
         active_alerts = alert_manager.get_active_alerts()
         
-        # Get alert statistics
-        alert_stats = await alert_manager.get_alert_statistics(hours=24)
+        # Get alert statistics from database
+        alert_stats = await alert_manager.get_alert_statistics(db, hours=24)
         
-        # Format active alerts for response
-        formatted_alerts = []
+        # Convert active alerts to response format
+        alerts_list = []
         for alert_key, alert in active_alerts.items():
-            formatted_alerts.append({
+            alerts_list.append({
                 "component": alert.component,
                 "rule_name": alert.rule_name,
                 "severity": alert.severity.value,
@@ -217,46 +221,20 @@ async def get_active_alerts():
                 "current_value": alert.current_value,
                 "threshold_value": alert.threshold_value,
                 "triggered_at": alert.triggered_at.isoformat(),
-                "trigger_count": alert.trigger_count,
-                "channels_notified": [ch.value for ch in alert.channels_notified]
+                "trigger_count": alert.trigger_count
             })
         
         return AlertSummaryResponse(
-            active_alerts=formatted_alerts,
+            active_alerts=alerts_list,
             alert_statistics=alert_stats,
             timestamp=datetime.utcnow().isoformat()
         )
         
     except Exception as e:
-        logger.error("Error getting alert summary", error=str(e))
+        logger.error("Error getting active alerts", error=str(e))
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to get alert summary: {str(e)}"
-        )
-
-@router.post("/alerts/{component}/{rule_name}/acknowledge")
-async def acknowledge_alert(
-    component: str,
-    rule_name: str,
-    acknowledged_by: str = Query(..., description="User acknowledging the alert")
-):
-    """Acknowledge an active alert."""
-    try:
-        await alert_manager.acknowledge_alert(component, rule_name, acknowledged_by)
-        
-        return {
-            "status": "acknowledged",
-            "component": component,
-            "rule_name": rule_name,
-            "acknowledged_by": acknowledged_by,
-            "acknowledged_at": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error("Error acknowledging alert", component=component, rule=rule_name, error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to acknowledge alert: {str(e)}"
+            detail=f"Failed to get alerts: {str(e)}"
         )
 
 @router.get("/monitoring/dashboard", response_model=MonitoringDashboardResponse)
@@ -264,26 +242,33 @@ async def monitoring_dashboard(
     hours: int = Query(24, description="Hours of data to include", ge=1, le=168),
     db: Session = Depends(get_db)
 ):
-    """Get comprehensive monitoring dashboard data."""
+    """Get comprehensive monitoring dashboard data with database storage."""
     try:
-        # Get current health status
-        component_healths = await health_checker.check_all_components()
-        overall_health = health_checker.get_overall_health(component_healths)
+        # Get current health status and store to database
+        component_healths = await health_checker.check_all_components_and_store(db, use_cache=True)
         
-        # Get performance metrics
-        performance_summary = await metrics_service.get_performance_summary(db, hours=hours)
-        
-        # Get alert statistics
-        alert_stats = await alert_manager.get_alert_statistics(hours=hours)
-        
-        # Get cache analytics
-        cache_analytics = await metrics_service.get_cache_analytics(db, hours=hours)
-        
-        # Calculate system health score
+        # Calculate overall health score
         healthy_components = sum(1 for h in component_healths.values() 
                                if h.status.value == "healthy")
         total_components = len(component_healths)
         health_score = (healthy_components / total_components) * 100 if total_components > 0 else 0
+        
+        # Determine system status
+        if health_score >= 90:
+            system_status = "healthy"
+        elif health_score >= 70:
+            system_status = "degraded"
+        else:
+            system_status = "unhealthy"
+        
+        # Get performance metrics
+        performance_summary = await metrics_service.get_performance_summary(db, hours=hours)
+        
+        # Get alert statistics  
+        alert_stats = await alert_manager.get_alert_statistics(db, hours=hours)
+        
+        # Get cache analytics
+        cache_analytics = await metrics_service.get_cache_analytics(db, hours=hours)
         
         # Get top performance issues
         performance_issues = []
@@ -296,30 +281,33 @@ async def monitoring_dashboard(
                     "response_time_ms": health.response_time_ms
                 })
         
+        # Component health summary for dashboard
+        component_health_summary = {
+            name: {
+                "status": health.status.value,
+                "response_time_ms": health.response_time_ms,
+                "last_checked": health.last_checked.isoformat() if health.last_checked else None
+            }
+            for name, health in component_healths.items()
+        }
+        
         return MonitoringDashboardResponse(
             overall_health_score=health_score,
-            system_status=overall_health.status.value,
+            system_status=system_status,
             active_alerts_count=len(alert_manager.get_active_alerts()),
             performance_summary=performance_summary,
             alert_statistics=alert_stats,
             cache_analytics=cache_analytics,
-            component_health_summary={
-                name: {
-                    "status": health.status.value,
-                    "response_time_ms": health.response_time_ms,
-                    "last_checked": health.last_checked.isoformat() if health.last_checked else None
-                }
-                for name, health in component_healths.items()
-            },
+            component_health_summary=component_health_summary,
             performance_issues=performance_issues,
             timestamp=datetime.utcnow().isoformat()
         )
         
     except Exception as e:
-        logger.error("Error generating monitoring dashboard", error=str(e))
+        logger.error("Error getting monitoring dashboard", error=str(e))
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to generate monitoring dashboard: {str(e)}"
+            detail=f"Monitoring dashboard failed: {str(e)}"
         )
 
 @router.get("/metrics/prometheus")

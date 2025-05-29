@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import uuid
 import json
 
-from app.queue.task_queue import (
+from app.task_queue.task_queue import (
     CrewExecutionTask,
     TaskQueue,
     TaskState,
@@ -82,7 +82,7 @@ class TestTaskQueue:
         task_id = str(uuid.uuid4())
         
         # Mock Celery AsyncResult
-        with patch('app.queue.task_queue.AsyncResult') as mock_result:
+        with patch('app.task_queue.task_queue.AsyncResult') as mock_result:
             mock_result.return_value.state = 'PENDING'
             mock_result.return_value.info = {}
             
@@ -96,7 +96,7 @@ class TestTaskQueue:
         """Test canceling a task."""
         task_id = str(uuid.uuid4())
         
-        with patch('app.queue.task_queue.celery_app.control.revoke') as mock_revoke:
+        with patch('app.task_queue.task_queue.celery_app.control.revoke') as mock_revoke:
             result = task_queue.cancel_task(task_id)
             
             mock_revoke.assert_called_once_with(task_id, terminate=True)
@@ -144,7 +144,7 @@ class TestCrewExecutionTask:
             ]
         }
     
-    @patch('app.queue.task_queue.ExecutionEngine')
+    @patch('app.task_queue.task_queue.ExecutionEngine')
     def test_execute_crew_task_success(self, mock_execution_engine, sample_crew_config):
         """Test successful crew task execution."""
         # Mock successful execution
@@ -174,7 +174,7 @@ class TestCrewExecutionTask:
         assert result["result"] == "Success"
         assert result["error"] is None
     
-    @patch('app.queue.task_queue.ExecutionEngine')
+    @patch('app.task_queue.task_queue.ExecutionEngine')
     def test_execute_crew_task_failure(self, mock_execution_engine, sample_crew_config):
         """Test crew task execution failure."""
         # Mock failed execution
@@ -203,8 +203,8 @@ class TestCrewExecutionTask:
         """Test retrying a failed task."""
         task_id = str(uuid.uuid4())
         
-        with patch('app.queue.task_queue.AsyncResult') as mock_async_result:
-            with patch('app.queue.task_queue.execute_crew_task.retry') as mock_retry:
+        with patch('app.task_queue.task_queue.AsyncResult') as mock_async_result:
+            with patch('app.task_queue.task_queue.execute_crew_task.retry') as mock_retry:
                 # Mock the AsyncResult to return FAILURE state
                 mock_result = mock_async_result.return_value
                 mock_result.state = 'FAILURE'
@@ -216,7 +216,7 @@ class TestCrewExecutionTask:
         """Test the cancel task function."""
         task_id = str(uuid.uuid4())
         
-        with patch('app.queue.task_queue.celery_app.control.revoke') as mock_revoke:
+        with patch('app.task_queue.task_queue.celery_app.control.revoke') as mock_revoke:
             result = cancel_task(task_id)
             
             mock_revoke.assert_called_once_with(task_id, terminate=True)

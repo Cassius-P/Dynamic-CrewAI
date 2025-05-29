@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crewai-backend"
+version = "0.1.0"
+description = "CrewAI Backend API for managing crews, agents, and executions"
+requires-python = ">=3.8"
+dependencies = [
+    # Add your dependencies here, or keep reading from requirements.txt
+]
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.setuptools.package-dir]
+"" = "."
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "black",
+    "flake8",
+    "mypy"
+]
