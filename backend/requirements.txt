@@ -33,7 +33,7 @@ colorama==0.4.6
 coloredlogs==15.0.1
 coverage==7.8.2
 crewai==0.121.0
--e git+https://github.com/Cassius-P/Dynamic-CrewAI.git@10c6f077c1e8d24ec84308d900ed6a0f85410256#egg=crewai_backend&subdirectory=backend
+#-e git+https://github.com/Cassius-P/Dynamic-CrewAI.git@10c6f077c1e8d24ec84308d900ed6a0f85410256#egg=crewai_backend&subdirectory=backend
 crewai-tools==0.45.0
 cryptography==45.0.3
 dataclasses-json==0.6.7

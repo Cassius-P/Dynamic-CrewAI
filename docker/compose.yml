@@ -69,6 +69,8 @@ services:
       context: ../backend
       dockerfile: Dockerfile
       target: production
+      args:
+        PYTHON_VERSION: "3.11"
     container_name: crewai-app
     environment:
       # Docker environment flag for validation
@@ -152,6 +154,8 @@ services:
       context: ../backend
       dockerfile: Dockerfile
       target: production
+      args:
+        PYTHON_VERSION: "3.11"
     container_name: crewai-celery-worker
     command: celery -A app.queue.task_queue worker --loglevel=${LOG_LEVEL:-info} --concurrency=${CELERY_WORKER_CONCURRENCY:-4} --queues=crew_execution,retry,default --max-tasks-per-child=1000
     
@@ -226,6 +230,8 @@ services:
       context: ../backend
       dockerfile: Dockerfile
       target: production
+      args:
+        PYTHON_VERSION: "3.11"
     container_name: crewai-celery-beat
     command: celery -A app.queue.task_queue beat --loglevel=${LOG_LEVEL:-info} --pidfile=/tmp/celerybeat.pid
     
@@ -292,6 +298,8 @@ services:
       context: ../backend
       dockerfile: Dockerfile
       target: production
+      args:
+        PYTHON_VERSION: "3.11"
     container_name: crewai-flower
     command: celery -A app.queue.task_queue flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD}
     
