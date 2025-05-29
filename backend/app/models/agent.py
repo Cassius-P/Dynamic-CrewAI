@@ -24,13 +24,11 @@ class Agent(Base):
     manager_type = Column(String(50))  # hierarchical, collaborative, sequential
     can_generate_tasks = Column(Boolean, default=False)
     manager_config = Column(JSON)  # Manager-specific configuration
-    
-    # Foreign Keys
-    crew_id = Column(Integer, ForeignKey("crews.id"))
-    
-    # Timestamps
+      # Foreign Keys
+    crew_id = Column(Integer, ForeignKey("crews.id"), nullable=True)
+      # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
     
     # Relationships
     crew = relationship("Crew", back_populates="agents")

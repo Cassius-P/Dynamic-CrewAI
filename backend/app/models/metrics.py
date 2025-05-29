@@ -2,11 +2,9 @@
 Performance metrics and cache statistics models.
 """
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, JSON
-from sqlalchemy.orm import declarative_base
 from datetime import datetime
 from typing import Dict, Any
-
-Base = declarative_base()
+from app.database import Base
 
 class PerformanceMetric(Base):
     """Performance metric data points."""

@@ -67,8 +67,11 @@ celery_app = Celery(
     'crew_tasks',
     broker=getattr(settings, 'redis_url', 'redis://localhost:6379/0'),
     backend=getattr(settings, 'redis_url', 'redis://localhost:6379/0'),
-    include=['app.queue.task_queue']
+    include=['app.task_queue.task_queue']
 )
+
+# Enable autodiscovery of tasks
+celery_app.autodiscover_tasks(['app.task_queue'])
 
 # Configure Celery
 celery_app.conf.update(
@@ -79,8 +82,8 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     task_routes={
-        'app.queue.task_queue.execute_crew_task': {'queue': 'crew_execution'},
-        'app.queue.task_queue.retry_failed_task': {'queue': 'retry'},
+        'app.task_queue.task_queue.execute_crew_task': {'queue': 'crew_execution'},
+        'app.task_queue.task_queue.retry_failed_task': {'queue': 'retry'},
     },
     worker_prefetch_multiplier=1,
     task_acks_late=True,
@@ -98,7 +101,7 @@ class CrewExecutionTask(Task):
     retry_jitter = True
 
 
-@celery_app.task(bind=True, base=CrewExecutionTask, name='app.queue.task_queue.execute_crew_task')
+@celery_app.task(bind=True, base=CrewExecutionTask, name='app.task_queue.task_queue.execute_crew_task')
 def execute_crew_task(self, execution_id: str, crew_config: Dict[str, Any], 
                      task_dependencies: Optional[List[str]] = None) -> Dict[str, Any]:
     """Execute a crew task with proper error handling and retry logic."""
@@ -136,12 +139,16 @@ def execute_crew_task(self, execution_id: str, crew_config: Dict[str, Any],
         
         end_time = datetime.utcnow()
         execution_time = (end_time - start_time).total_seconds()
+          # Prepare success result
+        status = result.get("status", "COMPLETED")
+        # Convert ExecutionStatus enum to string if needed
+        if hasattr(status, 'value'):
+            status = status.value
         
-        # Prepare success result
         task_result = {
             "task_id": task_id,
             "execution_id": execution_id,
-            "status": result.get("status", "COMPLETED"),
+            "status": status,
             "result": result.get("result"),
             "error": result.get("error"),
             "start_time": start_time.isoformat(),
@@ -187,7 +194,7 @@ def execute_crew_task(self, execution_id: str, crew_config: Dict[str, Any],
         return task_result
 
 
-@celery_app.task(name='app.queue.task_queue.retry_failed_task')
+@celery_app.task(name='app.task_queue.task_queue.retry_failed_task')
 def retry_failed_task(task_id: str, max_retries: int = 3, countdown: int = 60) -> bool:
     """Retry a failed task."""
     try:

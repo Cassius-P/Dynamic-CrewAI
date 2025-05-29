@@ -2,6 +2,7 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 
 *.db
+.idea/
 
 ### Python ###
 # Byte-compiled / optimized / DLL files

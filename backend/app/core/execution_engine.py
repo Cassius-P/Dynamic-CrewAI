@@ -36,8 +36,7 @@ class ExecutionEngine:
         
         start_time = datetime.utcnow()
         
-        try:
-            # Create crew from configuration
+        try:            # Create crew from configuration
             crew = self.crew_wrapper.create_crew_from_dict(crew_config)
             
             # Execute the crew
@@ -48,7 +47,7 @@ class ExecutionEngine:
             
             return {
                 "execution_id": execution_id,
-                "status": ExecutionStatus.COMPLETED,
+                "status": ExecutionStatus.COMPLETED.value,
                 "result": str(result),
                 "start_time": start_time.isoformat(),
                 "end_time": end_time.isoformat(),
@@ -62,7 +61,7 @@ class ExecutionEngine:
             
             return {
                 "execution_id": execution_id,
-                "status": ExecutionStatus.FAILED,
+                "status": ExecutionStatus.FAILED.value,
                 "result": None,
                 "start_time": start_time.isoformat(),
                 "end_time": end_time.isoformat(),
@@ -97,8 +96,7 @@ class ExecutionEngine:
             crew = self.crew_wrapper.create_crew_with_manager_tasks(
                 agents_models, text_input, **crew_kwargs
             )
-            
-            # Execute the crew
+              # Execute the crew
             result = crew.kickoff()
             
             end_time = datetime.utcnow()
@@ -106,7 +104,7 @@ class ExecutionEngine:
             
             return {
                 "execution_id": execution_id,
-                "status": ExecutionStatus.COMPLETED,
+                "status": ExecutionStatus.COMPLETED.value,
                 "result": str(result),
                 "start_time": start_time.isoformat(),
                 "end_time": end_time.isoformat(),
@@ -123,7 +121,7 @@ class ExecutionEngine:
             
             return {
                 "execution_id": execution_id,
-                "status": ExecutionStatus.FAILED,
+                "status": ExecutionStatus.FAILED.value,
                 "result": None,
                 "start_time": start_time.isoformat(),
                 "end_time": end_time.isoformat(),
@@ -176,13 +174,12 @@ class ExecutionEngine:
             
             end_time = datetime.utcnow()
             execution_time = (end_time - start_time).total_seconds()
-            
-            # Extract delegation information
+              # Extract delegation information
             delegation_info = self._extract_delegation_information(crew, result, delegation_mode)
             
             return {
                 "execution_id": execution_id,
-                "status": ExecutionStatus.COMPLETED,
+                "status": ExecutionStatus.COMPLETED.value,
                 "result": str(result),
                 "start_time": start_time.isoformat(),
                 "end_time": end_time.isoformat(),
@@ -200,7 +197,7 @@ class ExecutionEngine:
             
             return {
                 "execution_id": execution_id,
-                "status": ExecutionStatus.FAILED,
+                "status": ExecutionStatus.FAILED.value,
                 "result": None,
                 "start_time": start_time.isoformat(),
                 "end_time": end_time.isoformat(),
@@ -270,8 +267,7 @@ class ExecutionEngine:
         try:
             # Create crew from models
             crew = self.crew_wrapper.create_crew_from_model(crew_model, agents_models)
-            
-            # Execute the crew
+              # Execute the crew
             result = crew.kickoff()
             
             end_time = datetime.utcnow()
@@ -279,7 +275,7 @@ class ExecutionEngine:
             
             return {
                 "execution_id": execution_id,
-                "status": ExecutionStatus.COMPLETED,
+                "status": ExecutionStatus.COMPLETED.value,
                 "result": str(result),
                 "start_time": start_time.isoformat(),
                 "end_time": end_time.isoformat(),
@@ -293,7 +289,7 @@ class ExecutionEngine:
             
             return {
                 "execution_id": execution_id,
-                "status": ExecutionStatus.FAILED,
+                "status": ExecutionStatus.FAILED.value,
                 "result": None,
                 "start_time": start_time.isoformat(),
                 "end_time": end_time.isoformat(),

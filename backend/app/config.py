@@ -115,7 +115,8 @@ def create_settings():
         print("\n❌ Environment validation failed!")
         print("Missing or invalid environment variables:")
         for error in e.errors():
-            field = str(error.get('loc', ['unknown'])[0])
+            loc = error.get('loc', ())
+            field = str(loc[0]) if loc else 'unknown'
             msg = error.get('msg', 'Invalid value')
             print(f"   - {field.upper()}: {msg}")
         

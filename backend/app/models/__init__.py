@@ -11,9 +11,29 @@ from .memory import (
     MemoryConfiguration,
     MemoryCleanupLog
 )
+from .generation import (
+    DynamicCrewTemplate,
+    GenerationRequest,
+    CrewOptimization,
+    AgentCapability,
+    TaskRequirement,
+    GenerationMetrics
+)
+from .metrics import (
+    PerformanceMetric,
+    CacheStatistic,
+    ResourceUsageMetric,
+    QueryPerformance,
+    ExecutionProfile,
+    AlertThreshold
+)
 
 __all__ = [
     "Crew", "Agent", "Execution", "ExecutionStatus", "LLMProvider",
     "ShortTermMemory", "LongTermMemory", "EntityMemory", "EntityRelationship",
-    "MemoryConfiguration", "MemoryCleanupLog"
+    "MemoryConfiguration", "MemoryCleanupLog",
+    "DynamicCrewTemplate", "GenerationRequest", "CrewOptimization", 
+    "AgentCapability", "TaskRequirement", "GenerationMetrics",
+    "PerformanceMetric", "CacheStatistic", "ResourceUsageMetric",
+    "QueryPerformance", "ExecutionProfile", "AlertThreshold"
 ]

@@ -18,7 +18,7 @@ from app.config import settings
 from app.models.crew import Crew
 from app.models.agent import Agent
 from app.models.llm_provider import LLMProvider
-from app.models.execution import Execution
+from app.models.execution import Execution, ExecutionStatus
 from app.models.memory import (
     MemoryConfiguration,
     ShortTermMemory,
@@ -26,6 +26,22 @@ from app.models.memory import (
     EntityMemory,
     EntityRelationship,
     MemoryCleanupLog
+)
+from app.models.generation import (
+    DynamicCrewTemplate,
+    GenerationRequest,
+    CrewOptimization,
+    AgentCapability,
+    TaskRequirement,
+    GenerationMetrics
+)
+from app.models.metrics import (
+    PerformanceMetric,
+    CacheStatistic,
+    ResourceUsageMetric,
+    QueryPerformance,
+    ExecutionProfile,
+    AlertThreshold
 )
 
 # this is the Alembic Config object, which provides
